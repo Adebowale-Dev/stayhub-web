@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DeleteDepartmentDialog } from "@/components/DeleteDepartmentDialog";
 import { EditCollegeDialog } from "@/components/EditCollegeDialog";
+import { CreateCollegeDialog } from "@/components/CreateCollegeDialog";
 import { CollegeCard, LoadingState } from "@/components/colleges";
 import useAuthStore from "@/store/useAuthStore";
 import { useCollegeStore } from "@/store/useCollegeStore";
@@ -47,7 +48,7 @@ function CollegesPageContent() {
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
-  
+
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [collegeToEdit, setCollegeToEdit] = useState<{
     _id: string;
@@ -58,6 +59,7 @@ function CollegesPageContent() {
     deanEmail?: string;
     isActive: boolean;
   } | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const isSuperAdmin = user?.role === "admin";
 
@@ -109,6 +111,10 @@ function CollegesPageContent() {
     await Promise.all([fetchColleges(), fetchStatistics()]);
   };
 
+  const handleCreateSuccess = async () => {
+    await Promise.all([fetchColleges(), fetchStatistics()]);
+  };
+
   const handleDeleteConfirm = async () => {
     if (!collegeToDelete) return;
 
@@ -143,7 +149,7 @@ function CollegesPageContent() {
             </div>
             {isSuperAdmin && (
               <Button
-                onClick={() => router.push("/admin/colleges/create")}
+                onClick={() => setCreateModalOpen(true)}
                 className="h-8 md:h-9 text-xs shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 mr-1 md:mr-2" />
@@ -316,7 +322,7 @@ function CollegesPageContent() {
               </p>
               {isSuperAdmin && !searchQuery && statusFilter === "all" && (
                 <Button
-                  onClick={() => router.push("/admin/colleges/create")}
+                  onClick={() => setCreateModalOpen(true)}
                   className="h-9"
                 >
                   <Plus className="w-3.5 h-3.5 mr-2" />
@@ -336,6 +342,13 @@ function CollegesPageContent() {
         departmentName={collegeToDelete?.name}
         departmentCode={collegeToDelete?.code}
         isDeleting={isDeleting}
+      />
+
+      {/* Create College Modal */}
+      <CreateCollegeDialog
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onSuccess={handleCreateSuccess}
       />
 
       {/* Edit College Modal */}

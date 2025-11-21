@@ -108,6 +108,7 @@ export const adminAPI = {
   // Payments
   getPayments: (params?: Record<string, unknown>) => api.get('/admin/payments', { params }),
   getPaymentStats: () => api.get('/admin/payment/stats'),
+  getPaymentAmount: () => api.get('/admin/payment/amount'),
   setPaymentAmount: (amount: number) => api.post('/admin/payment/set-amount', { amount }),
 };
 

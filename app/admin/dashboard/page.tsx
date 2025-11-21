@@ -6,7 +6,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, CreditCard, Building2, DoorOpen, CheckCircle, Clock, UserCheck, ArrowRight } from 'lucide-react';
+import { Users, CreditCard, Building2, DoorOpen, CheckCircle, Clock, UserCheck, ArrowRight, FileText } from 'lucide-react';
 import useAdminStore from '@/store/useAdminStore';
 import { adminAPI } from '@/services/api';
 
@@ -193,6 +193,22 @@ export default function AdminDashboard() {
                                 >
                                     <Building2 className="mr-2 h-4 w-4" />
                                     Manage Hostels
+                                </Button>
+                                <Button
+                                    className="w-full justify-start"
+                                    variant="outline"
+                                    onClick={() => router.push('/admin/porters')}
+                                >
+                                    <UserCheck className="mr-2 h-4 w-4" />
+                                    Manage Porters
+                                </Button>
+                                <Button
+                                    className="w-full justify-start"
+                                    variant="outline"
+                                    onClick={() => router.push('/admin/reports')}
+                                >
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    View Reports
                                 </Button>
                             </CardContent>
                         </Card>
