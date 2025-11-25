@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserCheck, Search, CheckCircle, Clock, Building2, Mail, Phone } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { UserCheck, Search, Building2, Mail, Phone, UserPlus } from 'lucide-react';
 
 interface Porter {
   _id: string;
@@ -20,6 +21,10 @@ interface Porter {
   phone?: string;
   status: 'pending' | 'approved' | 'rejected';
   hostel?: {
+    _id: string;
+    name: string;
+  };
+  assignedHostel?: {
     _id: string;
     name: string;
   };
@@ -41,11 +46,19 @@ export default function PortersPage() {
   const [hostels, setHostels] = useState<Hostel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved'>('all');
-  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [selectedPorter, setSelectedPorter] = useState<Porter | null>(null);
   const [selectedHostelId, setSelectedHostelId] = useState('');
-  const [approving, setApproving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
+  const [newPorter, setNewPorter] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phoneNumber: '',
+    hostelId: '',
+  });
 
   useEffect(() => {
     loadData();
@@ -68,29 +81,68 @@ export default function PortersPage() {
     }
   };
 
-  const handleApproveClick = (porter: Porter) => {
-    setSelectedPorter(porter);
-    setSelectedHostelId('');
-    setApproveDialogOpen(true);
+  const handleCreatePorter = async () => {
+    if (!newPorter.name || !newPorter.email || !newPorter.password) {
+      alert('Please fill in all required fields (Name, Email, Password)');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Split name into firstName and lastName
+      const nameParts = newPorter.name.trim().split(' ');
+      const firstName = nameParts[0];
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : nameParts[0];
+
+      await adminAPI.createPorter({
+        firstName,
+        lastName,
+        email: newPorter.email,
+        password: newPorter.password,
+        phoneNumber: newPorter.phoneNumber,
+        hostelId: newPorter.hostelId || undefined,
+      });
+      alert('Porter created successfully!');
+      setCreateDialogOpen(false);
+      setNewPorter({ name: '', email: '', password: '', phoneNumber: '', hostelId: '' });
+      loadData();
+    } catch (error: unknown) {
+      console.error('Failed to create porter:', error);
+      const axiosError = error as { response?: { data?: { message?: string; error?: string } } };
+      const errorMessage = axiosError.response?.data?.message || axiosError.response?.data?.error || 'Failed to create porter';
+      alert(errorMessage);
+    } finally {
+      setCreating(false);
+    }
   };
 
-  const handleApprove = async () => {
+  const handleReassignClick = (porter: Porter) => {
+    setSelectedPorter(porter);
+    setSelectedHostelId(porter.assignedHostel?._id || porter.hostel?._id || '');
+    setReassignDialogOpen(true);
+  };
+
+  const handleReassignHostel = async () => {
     if (!selectedPorter || !selectedHostelId) {
       alert('Please select a hostel');
       return;
     }
 
-    setApproving(true);
+    setReassigning(true);
     try {
-      await adminAPI.approvePorter(selectedPorter._id, selectedHostelId);
-      alert('Porter approved successfully!');
-      setApproveDialogOpen(false);
+      await adminAPI.reassignHostel(selectedPorter._id, selectedHostelId);
+      alert('Hostel assigned successfully!');
+      setReassignDialogOpen(false);
+      setSelectedPorter(null);
+      setSelectedHostelId('');
       loadData();
-    } catch (error) {
-      console.error('Failed to approve porter:', error);
-      alert('Failed to approve porter. Please try again.');
+    } catch (error: unknown) {
+      console.error('Failed to assign hostel:', error);
+      const axiosError = error as { response?: { data?: { message?: string; error?: string }; status?: number } };
+      const errorMessage = axiosError.response?.data?.message || axiosError.response?.data?.error || 'Failed to assign hostel';
+      alert(`Error: ${errorMessage}`);
     } finally {
-      setApproving(false);
+      setReassigning(false);
     }
   };
 
@@ -98,17 +150,14 @@ export default function PortersPage() {
     const matchesSearch = 
       (porter.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (porter.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = 
-      statusFilter === 'all' || porter.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const stats = {
     total: porters.length,
-    pending: porters.filter(p => p.status === 'pending').length,
-    approved: porters.filter(p => p.status === 'approved').length,
+    withHostels: porters.filter(p => p.assignedHostel || p.hostel).length,
+    withoutHostels: porters.filter(p => !p.assignedHostel && !p.hostel).length,
   };
 
   // Get available hostels (without assigned porter)
@@ -131,13 +180,19 @@ export default function PortersPage() {
       <DashboardLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">
-              Porter Management
-            </h2>
-            <p className="text-muted-foreground mt-1">
-              Manage porter applications and hostel assignments
-            </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">
+                Porter Management
+              </h2>
+              <p className="text-muted-foreground mt-1">
+                Create porter accounts and manage hostel assignments
+              </p>
+            </div>
+            <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+              <UserPlus className="h-4 w-4" />
+              Create Porter
+            </Button>
           </div>
 
           {/* Stats Cards */}
@@ -150,33 +205,33 @@ export default function PortersPage() {
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <UserCheck className="h-4 w-4" />
-                  <span>All porter applications</span>
+                  <span>All porters</span>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Pending Approval</CardDescription>
-                <CardTitle className="text-2xl">{stats.pending}</CardTitle>
+                <CardDescription>With Assigned Hostels</CardDescription>
+                <CardTitle className="text-2xl">{stats.withHostels}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>Awaiting approval</span>
+                  <Building2 className="h-4 w-4" />
+                  <span>Assigned to hostels</span>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Approved Porters</CardDescription>
-                <CardTitle className="text-2xl">{stats.approved}</CardTitle>
+                <CardDescription>Without Hostels</CardDescription>
+                <CardTitle className="text-2xl">{stats.withoutHostels}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle className="h-4 w-4" />
-                  <span>Active porters</span>
+                  <Search className="h-4 w-4" />
+                  <span>Awaiting assignment</span>
                 </div>
               </CardContent>
             </Card>
@@ -195,16 +250,6 @@ export default function PortersPage() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={statusFilter} onValueChange={(value: string) => setStatusFilter(value as 'all' | 'pending' | 'approved')}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </CardContent>
           </Card>
@@ -232,8 +277,7 @@ export default function PortersPage() {
                         <TableHead>Name</TableHead>
                         <TableHead>Contact</TableHead>
                         <TableHead>Assigned Hostel</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Applied</TableHead>
+                        <TableHead>Created</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -261,50 +305,39 @@ export default function PortersPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {porter.hostel ? (
+                            {(porter.assignedHostel || porter.hostel) ? (
                               <div className="flex items-center gap-2">
                                 <Building2 className="h-4 w-4 text-muted-foreground" />
-                                <span>{porter.hostel.name}</span>
+                                <span>{porter.assignedHostel?.name || porter.hostel?.name}</span>
                               </div>
                             ) : (
                               <span className="text-muted-foreground text-sm">Not assigned</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {porter.status === 'pending' && (
-                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                Pending
-                              </Badge>
-                            )}
-                            {porter.status === 'approved' && (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                Approved
-                              </Badge>
-                            )}
-                            {porter.status === 'rejected' && (
-                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                Rejected
-                              </Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {new Date(porter.createdAt).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="text-right">
-                            {porter.status === 'pending' && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleApproveClick(porter)}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Approve
-                              </Button>
-                            )}
-                            {porter.status === 'approved' && porter.hostel && (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                Active
-                              </Badge>
-                            )}
+                            <div className="flex gap-2 justify-end">
+                              {(porter.assignedHostel || porter.hostel) ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleReassignClick(porter)}
+                                >
+                                  <Building2 className="h-4 w-4 mr-2" />
+                                  Reassign
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleReassignClick(porter)}
+                                >
+                                  <Building2 className="h-4 w-4 mr-2" />
+                                  Assign Hostel
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -316,13 +349,109 @@ export default function PortersPage() {
           </Card>
         </div>
 
-        {/* Approve Porter Dialog */}
-        <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+        {/* Create Porter Dialog */}
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create New Porter</DialogTitle>
+              <DialogDescription>
+                Create a porter account and optionally assign to a hostel
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="porter-name">Name *</Label>
+                <Input
+                  id="porter-name"
+                  placeholder="Enter porter name"
+                  value={newPorter.name}
+                  onChange={(e) => setNewPorter({ ...newPorter, name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="porter-email">Email *</Label>
+                <Input
+                  id="porter-email"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={newPorter.email}
+                  onChange={(e) => setNewPorter({ ...newPorter, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="porter-password">Password *</Label>
+                <Input
+                  id="porter-password"
+                  type="password"
+                  placeholder="Enter password"
+                  value={newPorter.password}
+                  onChange={(e) => setNewPorter({ ...newPorter, password: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="porter-phone">Phone Number</Label>
+                <Input
+                  id="porter-phone"
+                  placeholder="Enter phone number (optional)"
+                  value={newPorter.phoneNumber}
+                  onChange={(e) => setNewPorter({ ...newPorter, phoneNumber: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="porter-hostel">Assign to Hostel (Optional)</Label>
+                <Select value={newPorter.hostelId || undefined} onValueChange={(value) => setNewPorter({ ...newPorter, hostelId: value })}>
+                  <SelectTrigger id="porter-hostel">
+                    <SelectValue placeholder="No hostel (assign later)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableHostels.map((hostel) => (
+                      <SelectItem key={hostel._id} value={hostel._id}>
+                        {hostel.name} ({hostel.gender})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  You can assign a hostel now or do it later
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCreateDialogOpen(false);
+                  setNewPorter({ name: '', email: '', password: '', phoneNumber: '', hostelId: '' });
+                }}
+                className="flex-1"
+                disabled={creating}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreatePorter}
+                className="flex-1"
+                disabled={!newPorter.name || !newPorter.email || !newPorter.password || creating}
+              >
+                {creating ? 'Creating...' : 'Create Porter'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reassign Hostel Dialog */}
+        <Dialog open={reassignDialogOpen} onOpenChange={setReassignDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Approve Porter</DialogTitle>
+              <DialogTitle>Assign Hostel</DialogTitle>
               <DialogDescription>
-                Assign {selectedPorter?.name} to a hostel
+                Assign a hostel to {selectedPorter?.name}
               </DialogDescription>
             </DialogHeader>
             
@@ -332,31 +461,35 @@ export default function PortersPage() {
                 <div className="p-3 bg-muted rounded-lg space-y-1">
                   <p className="font-medium">{selectedPorter?.name}</p>
                   <p className="text-sm text-muted-foreground">{selectedPorter?.email}</p>
+                  {selectedPorter?.hostel && (
+                    <p className="text-sm text-muted-foreground">
+                      Current: <span className="font-medium">{selectedPorter.hostel.name}</span>
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Assign to Hostel</label>
+                <Label htmlFor="reassign-hostel">Select Hostel</Label>
                 <Select value={selectedHostelId} onValueChange={setSelectedHostelId}>
-                  <SelectTrigger>
+                  <SelectTrigger id="reassign-hostel">
                     <SelectValue placeholder="Select a hostel" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableHostels.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">
-                        No available hostels (all have assigned porters)
-                      </div>
-                    ) : (
-                      availableHostels.map((hostel) => (
-                        <SelectItem key={hostel._id} value={hostel._id}>
-                          {hostel.name} ({hostel.gender})
-                        </SelectItem>
-                      ))
+                    {selectedPorter?.hostel && (
+                      <SelectItem value={selectedPorter.hostel._id}>
+                        {selectedPorter.hostel.name} (Current)
+                      </SelectItem>
                     )}
+                    {availableHostels.map((hostel) => (
+                      <SelectItem key={hostel._id} value={hostel._id}>
+                        {hostel.name} ({hostel.gender})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Only hostels without assigned porters are shown
+                  Select a hostel for this porter
                 </p>
               </div>
             </div>
@@ -364,18 +497,22 @@ export default function PortersPage() {
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => setApproveDialogOpen(false)}
+                onClick={() => {
+                  setReassignDialogOpen(false);
+                  setSelectedPorter(null);
+                  setSelectedHostelId('');
+                }}
                 className="flex-1"
-                disabled={approving}
+                disabled={reassigning}
               >
                 Cancel
               </Button>
               <Button
-                onClick={handleApprove}
+                onClick={handleReassignHostel}
                 className="flex-1"
-                disabled={!selectedHostelId || approving}
+                disabled={!selectedHostelId || reassigning}
               >
-                {approving ? 'Approving...' : 'Approve & Assign'}
+                {reassigning ? 'Assigning...' : 'Assign Hostel'}
               </Button>
             </div>
           </DialogContent>

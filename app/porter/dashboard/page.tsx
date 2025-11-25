@@ -125,24 +125,24 @@ export default function PorterDashboard() {
             </Card>
 
             {/* Checked In */}
-            <Card className="border-2 hover:shadow-lg transition-shadow border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+            <Card className="border-2 hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium text-green-700 dark:text-green-400">Checked In</CardDescription>
-                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <CardDescription className="text-xs font-medium">Checked In</CardDescription>
+                  <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <CardTitle className="text-4xl font-bold text-green-700 dark:text-green-400">
+                  <CardTitle className="text-4xl font-bold text-gray-900 dark:text-white">
                     {dashboardData?.checkedIn || 0}
                   </CardTitle>
-                  <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400">
+                  <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                     <UserCheck className="h-3 w-3" />
                     <span>Successfully checked in</span>
                   </div>
                   {dashboardData?.totalStudents && (
-                    <Badge variant="outline" className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700">
+                    <Badge variant="outline" className="text-xs">
                       {checkInPercentage}% Complete
                     </Badge>
                   )}
@@ -151,24 +151,24 @@ export default function PorterDashboard() {
             </Card>
 
             {/* Pending Check-in */}
-            <Card className="border-2 hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
+            <Card className="border-2 hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium text-yellow-700 dark:text-yellow-400">Pending</CardDescription>
-                  <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                  <CardDescription className="text-xs font-medium">Pending</CardDescription>
+                  <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <CardTitle className="text-4xl font-bold text-yellow-700 dark:text-yellow-400">
+                  <CardTitle className="text-4xl font-bold text-gray-900 dark:text-white">
                     {dashboardData?.pendingCheckIn || 0}
                   </CardTitle>
-                  <div className="flex items-center gap-2 text-xs text-yellow-700 dark:text-yellow-400">
+                  <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                     <UserX className="h-3 w-3" />
                     <span>Awaiting check-in</span>
                   </div>
                   {dashboardData?.pendingCheckIn && dashboardData.pendingCheckIn > 0 && (
-                    <Badge variant="outline" className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700">
+                    <Badge variant="outline" className="text-xs">
                       Action Required
                     </Badge>
                   )}
@@ -277,15 +277,15 @@ export default function PorterDashboard() {
           )}
 
           {/* Info Card */}
-          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+          <Card>
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
                     Porter Responsibilities
                   </h3>
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     As a porter, you are responsible for checking in students, maintaining hostel records, 
                     and ensuring smooth daily operations. For any issues or emergencies, contact the hostel administrator immediately.
                   </p>

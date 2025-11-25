@@ -43,6 +43,32 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
   };
 
+  const getProfilePath = () => {
+    switch (user?.role) {
+      case 'student':
+        return '/student/profile';
+      case 'porter':
+        return '/porter/profile';
+      case 'admin':
+        return '/admin/profile';
+      default:
+        return '/profile';
+    }
+  };
+
+  const getSettingsPath = () => {
+    switch (user?.role) {
+      case 'student':
+        return '/student/settings';
+      case 'porter':
+        return '/porter/settings';
+      case 'admin':
+        return '/admin/settings';
+      default:
+        return '/settings';
+    }
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar for desktop */}
@@ -121,10 +147,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/profile')}>
+              <DropdownMenuItem onClick={() => router.push(getProfilePath())}>
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/settings')}>
+              <DropdownMenuItem onClick={() => router.push(getSettingsPath())}>
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />

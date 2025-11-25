@@ -52,6 +52,7 @@ const porterNavItems: NavItem[] = [
   { title: 'Check-in', href: '/porter/checkin', icon: UserCheck },
   { title: 'Rooms', href: '/porter/rooms', icon: DoorOpen },
   { title: 'Reports', href: '/porter/reports', icon: FileText },
+  { title: 'Profile', href: '/porter/profile', icon: User },
 ];
 
 interface AppSidebarProps {

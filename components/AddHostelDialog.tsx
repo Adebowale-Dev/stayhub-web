@@ -40,6 +40,7 @@ export function AddHostelDialog({
     code: "",
     location: "",
     totalRooms: "",
+    capacity: "",
     gender: "male" as "male" | "female" | "mixed",
     allowedLevels: [] as number[],
     description: "",
@@ -72,6 +73,10 @@ export function AddHostelDialog({
       newErrors.totalRooms = "Total rooms must be at least 1";
     }
 
+    if (!formData.capacity || Number(formData.capacity) <= 0) {
+      newErrors.capacity = "Total capacity must be at least 1";
+    }
+
     if (formData.allowedLevels.length === 0) {
       newErrors.allowedLevels = "Select at least one level";
     }
@@ -92,6 +97,7 @@ export function AddHostelDialog({
         code: formData.code.trim().toUpperCase(),
         location: formData.location.trim(),
         totalRooms: Number(formData.totalRooms),
+        capacity: Number(formData.capacity),
         gender: formData.gender,
         level: formData.allowedLevels.length > 0 ? formData.allowedLevels[0] : 100, // Backend expects single level field
         isActive: formData.isActive,
@@ -108,6 +114,7 @@ export function AddHostelDialog({
         code: "",
         location: "",
         totalRooms: "",
+        capacity: "",
         gender: "male",
         allowedLevels: [],
         description: "",
@@ -180,6 +187,7 @@ export function AddHostelDialog({
         code: "",
         location: "",
         totalRooms: "",
+        capacity: "",
         gender: "male",
         allowedLevels: [],
         description: "",
@@ -316,6 +324,34 @@ export function AddHostelDialog({
                 {errors.totalRooms && (
                   <p className="text-xs text-destructive">{errors.totalRooms}</p>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Total Capacity */}
+              <div className="space-y-2">
+                <Label htmlFor="capacity" className="text-sm font-medium">
+                  Total Capacity <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  placeholder="e.g., 200"
+                  value={formData.capacity}
+                  onChange={(e) => {
+                    setFormData({ ...formData, capacity: e.target.value });
+                    if (errors.capacity) setErrors({ ...errors, capacity: "" });
+                  }}
+                  className={errors.capacity ? "border-destructive" : ""}
+                  disabled={loading}
+                  min="1"
+                />
+                {errors.capacity && (
+                  <p className="text-xs text-destructive">{errors.capacity}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Total number of students the hostel can accommodate
+                </p>
               </div>
             </div>
 

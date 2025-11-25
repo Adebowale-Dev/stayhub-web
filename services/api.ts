@@ -51,8 +51,8 @@ export const authAPI = {
   resetPassword: (token: string, newPassword: string) =>
     api.post('/auth/reset-password', { token, newPassword }),
 
-  changePassword: (oldPassword: string, newPassword: string) =>
-    api.post('/auth/change-password', { oldPassword, newPassword }),
+  changePassword: (oldPassword: string, newPassword: string, confirmPassword: string) =>
+    api.post('/auth/change-password', { oldPassword, newPassword, confirmPassword }),
 };
 
 // Admin API methods
@@ -104,6 +104,9 @@ export const adminAPI = {
   getPorters: () => api.get('/admin/porters'),
   approvePorter: (porterId: string, hostelId: string) =>
     api.post('/admin/porters/approve', { porterId, hostelId }),
+  createPorter: (data: Record<string, unknown>) => api.post('/admin/porters', data),
+  reassignHostel: (porterId: string, hostelId: string) =>
+    api.post('/admin/porters/assign-hostel', { porterId, hostelId }),
 
   // Payments
   getPayments: (params?: Record<string, unknown>) => api.get('/admin/payments', { params }),
