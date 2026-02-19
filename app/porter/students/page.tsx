@@ -58,7 +58,86 @@ export default function PorterStudentsPage() {
     setLoading(true);
     try {
       const response = await porterAPI.getStudents();
-      setStudents(response.data.data || response.data || []);
+      console.log('Porter Students API Response:', response.data);
+      const studentsData = response.data.data || response.data || [];
+      console.log('Students data:', studentsData);
+      console.log('Total students:', studentsData.length);
+      
+      if (studentsData.length > 0) {
+        console.log('First student structure:', studentsData[0]);
+        console.log('Student fields:', Object.keys(studentsData[0]));
+        console.log('Name field:', studentsData[0].name || `${studentsData[0].firstName} ${studentsData[0].lastName}`);
+        console.log('Reservation:', studentsData[0].reservation);
+        console.log('Room assignment:', studentsData[0].roomAssignment);
+        console.log('Check-in status:', studentsData[0].checkInStatus);
+        console.log('assignedRoom (raw):', studentsData[0].assignedRoom);
+        console.log('assignedBunk (raw):', studentsData[0].assignedBunk);
+        console.log('assignedHostel (raw):', studentsData[0].assignedHostel);
+        console.log('reservationStatus:', studentsData[0].reservationStatus);
+      }
+      
+      // Map the data to handle different field structures
+      const mappedStudents = studentsData.map((student: any) => {
+        // Check for room assignment in multiple possible locations
+        let roomAssignment = null;
+        
+        if (student.assignedRoom) {
+          // Backend uses assignedRoom, assignedBunk, assignedHostel fields
+          roomAssignment = {
+            room: {
+              _id: typeof student.assignedRoom === 'object' ? student.assignedRoom._id : student.assignedRoom,
+              roomNumber: typeof student.assignedRoom === 'object' ? student.assignedRoom.roomNumber : 'N/A',
+              block: typeof student.assignedRoom === 'object' ? student.assignedRoom.block : undefined
+            },
+            bunkNumber: typeof student.assignedBunk === 'object' ? student.assignedBunk.bunkNumber : student.assignedBunk
+          };
+        } else if (student.roomAssignment) {
+          // Standard roomAssignment field
+          roomAssignment = student.roomAssignment;
+        } else if (student.reservation) {
+          // Reservation object with room details
+          roomAssignment = {
+            room: {
+              _id: student.reservation.room?._id || student.reservation.room,
+              roomNumber: student.reservation.room?.roomNumber || 'N/A',
+              block: student.reservation.room?.block
+            },
+            bunkNumber: student.reservation.bunk?.bunkNumber
+          };
+        }
+
+        // Determine check-in status from multiple possible fields
+        const checkInStatus = 
+          student.checkInStatus || 
+          student.reservationStatus || 
+          student.reservation?.status || 
+          student.status ||
+          (student.assignedRoom ? 'checked-in' : 'not-checked-in');
+
+        return {
+          _id: student._id,
+          name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+          email: student.email,
+          phone: student.phone || student.phoneNumber,
+          matricNumber: student.matricNumber || student.matricNo,
+          roomAssignment,
+          checkInStatus,
+          checkInDate: student.checkInDate || student.reservation?.checkedInAt || student.updatedAt,
+          department: student.department?.name || student.department,
+          level: student.level
+        };
+      });
+      
+      console.log('Mapped students:', mappedStudents);
+      
+      // Log detailed info about mapped data
+      if (mappedStudents.length > 0) {
+        console.log('First mapped student:', mappedStudents[0]);
+        console.log('Room assignment after mapping:', mappedStudents[0].roomAssignment);
+        console.log('Check-in status after mapping:', mappedStudents[0].checkInStatus);
+      }
+      
+      setStudents(mappedStudents);
     } catch (error: unknown) {
       console.error('Failed to load students:', error);
       const axiosError = error as { response?: { status?: number; data?: { message?: string; firstLogin?: boolean } } };
@@ -85,12 +164,20 @@ export default function PorterStudentsPage() {
   const handleCheckIn = async (studentId: string) => {
     setCheckingIn(studentId);
     try {
-      await porterAPI.checkInStudent(studentId);
+      console.log('Checking in student:', studentId);
+      const response = await porterAPI.checkInStudent(studentId);
+      console.log('Check-in response:', response.data);
       alert('Student checked in successfully!');
       loadStudents();
     } catch (error) {
       console.error('Failed to check in student:', error);
-      alert('Failed to check in student. Please try again.');
+      const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+      
+      // Show detailed error message
+      const errorMessage = axiosError.response?.data?.message || 'Failed to check in student. Please try again.';
+      console.error('Error status:', axiosError.response?.status);
+      console.error('Error message:', errorMessage);
+      alert(errorMessage);
     } finally {
       setCheckingIn(null);
     }
@@ -102,16 +189,22 @@ export default function PorterStudentsPage() {
       (student.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (student.matricNumber?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     
-    const matchesStatus = 
-      statusFilter === 'all' || student.checkInStatus === statusFilter;
+    let matchesStatus = false;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'checked-in') {
+      matchesStatus = student.checkInStatus === 'checked-in' || student.checkInStatus === 'checked_in';
+    } else {
+      matchesStatus = student.checkInStatus === statusFilter;
+    }
 
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
     total: students.length,
-    checkedIn: students.filter(s => s.checkInStatus === 'checked-in').length,
-    pending: students.filter(s => s.checkInStatus === 'pending').length,
+    checkedIn: students.filter(s => s.checkInStatus === 'checked-in' || s.checkInStatus === 'checked_in').length,
+    pending: students.filter(s => s.checkInStatus === 'pending' || s.checkInStatus === 'confirmed').length,
     notCheckedIn: students.filter(s => s.checkInStatus === 'not-checked-in').length,
   };
 
@@ -310,22 +403,24 @@ export default function PorterStudentsPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {student.checkInStatus === 'checked-in' && (
+                            {(student.checkInStatus === 'checked-in' || student.checkInStatus === 'checked_in' || student.checkInStatus === 'active') ? (
                               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
                                 Checked In
                               </Badge>
-                            )}
-                            {student.checkInStatus === 'pending' && (
+                            ) : (student.checkInStatus === 'pending' || student.checkInStatus === 'confirmed') ? (
                               <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800">
                                 <Clock className="h-3 w-3 mr-1" />
-                                Pending
+                                {student.checkInStatus === 'confirmed' ? 'Confirmed' : 'Pending'}
                               </Badge>
-                            )}
-                            {student.checkInStatus === 'not-checked-in' && (
+                            ) : student.checkInStatus === 'not-checked-in' ? (
                               <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:border-gray-800">
                                 <XCircle className="h-3 w-3 mr-1" />
                                 Not Checked In
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">
+                                {student.checkInStatus || 'Unknown'}
                               </Badge>
                             )}
                           </TableCell>
@@ -336,21 +431,17 @@ export default function PorterStudentsPage() {
                             }
                           </TableCell>
                           <TableCell className="text-right">
-                            {student.checkInStatus === 'pending' && (
+                            {(student.checkInStatus === 'pending' || student.checkInStatus === 'confirmed') ? (
                               <Button
                                 size="sm"
                                 onClick={() => handleCheckIn(student._id)}
                                 disabled={checkingIn === student._id}
                               >
-                                <UserCheck className="h-4 w-4 mr-2" />
-                                {checkingIn === student._id ? 'Checking In...' : 'Check In'}
+                                {checkingIn === student._id ? 'Checking in...' : 'Check In'}
                               </Button>
-                            )}
-                            {student.checkInStatus === 'checked-in' && (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
-                                Active
-                              </Badge>
-                            )}
+                            ) : (student.checkInStatus === 'checked-in' || student.checkInStatus === 'checked_in' || student.checkInStatus === 'active') ? (
+                              <Badge variant="secondary">Active</Badge>
+                            ) : null}
                           </TableCell>
                         </TableRow>
                       ))}

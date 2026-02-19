@@ -41,6 +41,8 @@ export function AddHostelDialog({
     location: "",
     totalRooms: "",
     capacity: "",
+    bedsPerRoom: "",
+    floorsCount: "",
     gender: "male" as "male" | "female" | "mixed",
     allowedLevels: [] as number[],
     description: "",
@@ -49,6 +51,17 @@ export function AddHostelDialog({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  // Auto-calculate total rooms when capacity or beds per room changes
+  const calculateTotalRooms = (capacity: string, bedsPerRoom: string) => {
+    const capacityNum = Number(capacity);
+    const bedsNum = Number(bedsPerRoom);
+    
+    if (capacityNum > 0 && bedsNum > 0) {
+      return Math.ceil(capacityNum / bedsNum).toString();
+    }
+    return "";
+  };
 
   const allLevels = [100, 200, 300, 400, 500];
 
@@ -77,6 +90,14 @@ export function AddHostelDialog({
       newErrors.capacity = "Total capacity must be at least 1";
     }
 
+    if (!formData.bedsPerRoom || Number(formData.bedsPerRoom) <= 0) {
+      newErrors.bedsPerRoom = "Beds per room must be at least 1";
+    }
+
+    if (!formData.floorsCount || Number(formData.floorsCount) <= 0) {
+      newErrors.floorsCount = "Number of floors must be at least 1";
+    }
+
     if (formData.allowedLevels.length === 0) {
       newErrors.allowedLevels = "Select at least one level";
     }
@@ -98,9 +119,12 @@ export function AddHostelDialog({
         location: formData.location.trim(),
         totalRooms: Number(formData.totalRooms),
         capacity: Number(formData.capacity),
+        bedsPerRoom: Number(formData.bedsPerRoom),
+        floorsCount: Number(formData.floorsCount),
         gender: formData.gender,
         level: formData.allowedLevels.length > 0 ? formData.allowedLevels[0] : 100, // Backend expects single level field
         isActive: formData.isActive,
+        autoCreateRooms: true, // Signal to backend to auto-create rooms
         ...(formData.description.trim() && { description: formData.description.trim() }),
       };
       
@@ -115,6 +139,8 @@ export function AddHostelDialog({
         location: "",
         totalRooms: "",
         capacity: "",
+        bedsPerRoom: "",
+        floorsCount: "",
         gender: "male",
         allowedLevels: [],
         description: "",
@@ -188,6 +214,8 @@ export function AddHostelDialog({
         location: "",
         totalRooms: "",
         capacity: "",
+        bedsPerRoom: "",
+        floorsCount: "",
         gender: "male",
         allowedLevels: [],
         description: "",
@@ -324,6 +352,11 @@ export function AddHostelDialog({
                 {errors.totalRooms && (
                   <p className="text-xs text-destructive">{errors.totalRooms}</p>
                 )}
+                {formData.capacity && formData.bedsPerRoom && formData.totalRooms && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    ✓ Auto-calculated: {formData.capacity} beds ÷ {formData.bedsPerRoom} beds/room = {formData.totalRooms} rooms
+                  </p>
+                )}
               </div>
             </div>
 
@@ -339,8 +372,17 @@ export function AddHostelDialog({
                   placeholder="e.g., 200"
                   value={formData.capacity}
                   onChange={(e) => {
-                    setFormData({ ...formData, capacity: e.target.value });
+                    const newCapacity = e.target.value;
+                    const calculatedRooms = calculateTotalRooms(newCapacity, formData.bedsPerRoom);
+                    setFormData({ 
+                      ...formData, 
+                      capacity: newCapacity,
+                      totalRooms: calculatedRooms 
+                    });
                     if (errors.capacity) setErrors({ ...errors, capacity: "" });
+                    if (calculatedRooms && errors.totalRooms) {
+                      setErrors({ ...errors, totalRooms: "" });
+                    }
                   }}
                   className={errors.capacity ? "border-destructive" : ""}
                   disabled={loading}
@@ -351,6 +393,69 @@ export function AddHostelDialog({
                 )}
                 <p className="text-xs text-muted-foreground">
                   Total number of students the hostel can accommodate
+                </p>
+              </div>
+
+              {/* Beds Per Room */}
+              <div className="space-y-2">
+                <Label htmlFor="bedsPerRoom" className="text-sm font-medium">
+                  Beds Per Room <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="bedsPerRoom"
+                  type="number"
+                  placeholder="e.g., 4"
+                  value={formData.bedsPerRoom}
+                  onChange={(e) => {
+                    const newBedsPerRoom = e.target.value;
+                    const calculatedRooms = calculateTotalRooms(formData.capacity, newBedsPerRoom);
+                    setFormData({ 
+                      ...formData, 
+                      bedsPerRoom: newBedsPerRoom,
+                      totalRooms: calculatedRooms 
+                    });
+                    if (errors.bedsPerRoom) setErrors({ ...errors, bedsPerRoom: "" });
+                    if (calculatedRooms && errors.totalRooms) {
+                      setErrors({ ...errors, totalRooms: "" });
+                    }
+                  }}
+                  className={errors.bedsPerRoom ? "border-destructive" : ""}
+                  disabled={loading}
+                  min="1"
+                />
+                {errors.bedsPerRoom && (
+                  <p className="text-xs text-destructive">{errors.bedsPerRoom}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Capacity for each room (e.g., 4 beds)
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Number of Floors */}
+              <div className="space-y-2">
+                <Label htmlFor="floorsCount" className="text-sm font-medium">
+                  Number of Floors <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="floorsCount"
+                  type="number"
+                  placeholder="e.g., 3"
+                  value={formData.floorsCount}
+                  onChange={(e) => {
+                    setFormData({ ...formData, floorsCount: e.target.value });
+                    if (errors.floorsCount) setErrors({ ...errors, floorsCount: "" });
+                  }}
+                  className={errors.floorsCount ? "border-destructive" : ""}
+                  disabled={loading}
+                  min="1"
+                />
+                {errors.floorsCount && (
+                  <p className="text-xs text-destructive">{errors.floorsCount}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Rooms will be distributed across floors
                 </p>
               </div>
             </div>

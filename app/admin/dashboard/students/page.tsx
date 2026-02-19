@@ -17,6 +17,7 @@ import {
   Eye,
   Filter,
   RefreshCw,
+  KeyRound,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,11 +38,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { EditStudentDialog } from "@/components/EditStudentDialog";
 import { DeleteDepartmentDialog } from "@/components/DeleteDepartmentDialog";
+import { AddStudentDialog } from "@/components/AddStudentDialog";
 import { adminAPI } from "@/services/api";
+import { toast } from "sonner";
 
 interface Student {
   _id: string;
@@ -87,7 +99,15 @@ function StudentsPageContent() {
   
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [viewLoginModalOpen, setViewLoginModalOpen] = useState(false);
+  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
+  const [studentToView, setStudentToView] = useState<Student | null>(null);
+  const [studentToReset, setStudentToReset] = useState<Student | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<{
     id: string;
     name: string;
@@ -193,6 +213,113 @@ function StudentsPageContent() {
     await loadStudents();
   };
 
+  const handleResetPasswordClick = (student: Student) => {
+    setStudentToReset(student);
+    setNewPassword("");
+    setShowNewPassword(false);
+    setResetPasswordModalOpen(true);
+  };
+
+  const generateRandomPassword = () => {
+    const firstName = studentToReset?.firstName || 'Student';
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    setNewPassword(`${firstName}${randomNum}`);
+  };
+
+  const handleResetPasswordConfirm = async () => {
+    if (!studentToReset || !newPassword) {
+      toast.error("Please enter a new password");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    setIsResetting(true);
+    
+    try {
+      console.log("Resetting password for student:", studentToReset._id);
+      console.log("Using update endpoint with 60s timeout");
+      
+      // Use dedicated password update method with longer timeout
+      await adminAPI.updateStudentPassword(studentToReset._id, newPassword);
+      
+      const credentials = `
+Password Reset Successful!
+
+Student: ${studentToReset.firstName} ${studentToReset.lastName}
+Email: ${studentToReset.email}
+Matric No: ${studentToReset.matricNo}
+New Password: ${newPassword}
+
+The student can now login with their email/matric number and this new password.
+      `.trim();
+      
+      console.log(credentials);
+      alert(credentials);
+      
+      toast.success("Password reset successfully!");
+      setResetPasswordModalOpen(false);
+      setStudentToReset(null);
+      setNewPassword("");
+    } catch (error: unknown) {
+      console.error("Failed to reset password:", error);
+      const err = error as { 
+        response?: { 
+          status?: number;
+          data?: { message?: string; error?: string } 
+        };
+        message?: string;
+        code?: string;
+      };
+      
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        // Show credentials even on timeout - password might still be updating
+        const credentials = `
+⚠️ Password Reset - Request Timed Out (60+ seconds)
+
+Student: ${studentToReset.firstName} ${studentToReset.lastName}
+Email: ${studentToReset.email}
+Matric No: ${studentToReset.matricNo}
+Attempted Password: ${newPassword}
+
+NEXT STEPS:
+1. Wait 3-5 minutes for backend to finish processing
+2. Try logging in with the credentials above
+3. If login works: Password was successfully updated!
+4. If login fails: The update timed out - try resetting again
+
+⚠️ BACKEND ISSUE DETECTED:
+The backend is taking over 60 seconds to hash passwords.
+
+TO FIX THE BACKEND:
+1. Open your Student model/schema file
+2. Find the password hashing code (bcrypt.hash or similar)
+3. Reduce bcrypt rounds from current value to 10
+   Example: bcrypt.hash(password, 10) // Use 10 rounds, not 15-20
+4. Restart your backend server
+
+Current backend behavior is abnormal - password hashing should take <1 second.
+        `.trim();
+        
+        console.warn(credentials);
+        alert(credentials);
+        toast.warning("Backend timeout! Password may still be updating. Wait 3-5 minutes then try logging in.", { duration: 10000 });
+        
+        // Close modal but keep credentials visible
+        setResetPasswordModalOpen(false);
+        setNewPassword("");
+        // Don't clear studentToReset so we can see who we tried to reset
+      } else {
+        toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to reset password. Check backend console.", { duration: 5000 });
+      }
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const handleDeleteClick = (id: string, firstName: string, lastName: string, matricNo: string) => {
     setStudentToDelete({ id, name: `${firstName} ${lastName}`, matricNo });
     setDeleteModalOpen(true);
@@ -203,13 +330,21 @@ function StudentsPageContent() {
 
     setIsDeleting(true);
     try {
-      // Call delete API - you'll need to add this to your store or API
-      await adminAPI.deleteStudent(studentToDelete.id);
+      console.log("Force deleting student:", studentToDelete.id);
+      // Use force delete endpoint to bypass pre-remove hooks
+      await adminAPI.forceDeleteStudent(studentToDelete.id);
+      console.log("Student force deleted successfully");
+      toast.success("Student deleted successfully");
       setDeleteModalOpen(false);
       setStudentToDelete(null);
       await loadStudents();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete student:", err);
+      if (err.code === 'ECONNABORTED') {
+        toast.error("Delete timeout. The backend is processing - check backend console. The student may have been deleted.", { duration: 8000 });
+      } else {
+        toast.error(err.response?.data?.message || "Failed to delete student");
+      }
       setError("Failed to delete student. Please try again.");
     } finally {
       setIsDeleting(false);
@@ -264,7 +399,7 @@ function StudentsPageContent() {
               </Button>
               <Button
                 size="sm"
-                onClick={() => router.push("/admin/dashboard/students/create")}
+                onClick={() => setAddModalOpen(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Student
@@ -589,8 +724,12 @@ function StudentsPageContent() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 hover:bg-blue-500/10 hover:text-blue-600"
-                              onClick={() => {/* TODO: View details */}}
-                              aria-label="View Student"
+                              onClick={() => {
+                                setStudentToView(student);
+                                setViewLoginModalOpen(true);
+                              }}
+                              aria-label="View Login Details"
+                              title="View Login Details"
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
@@ -600,8 +739,19 @@ function StudentsPageContent() {
                               className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
                               onClick={() => handleEditClick(student)}
                               aria-label="Edit Student"
+                              title="Edit Student"
                             >
                               <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-orange-500/10 hover:text-orange-600"
+                              onClick={() => handleResetPasswordClick(student)}
+                              aria-label="Reset Password"
+                              title="Reset Password"
+                            >
+                              <KeyRound className="w-3.5 h-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -616,6 +766,7 @@ function StudentsPageContent() {
                                 )
                               }
                               aria-label="Delete Student"
+                              title="Delete Student"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -646,6 +797,182 @@ function StudentsPageContent() {
         student={studentToEdit}
         onSuccess={handleEditSuccess}
       />
+
+      {/* Add Student Modal */}
+      <AddStudentDialog
+        open={addModalOpen}
+        onOpenChange={setAddModalOpen}
+        onSuccess={loadStudents}
+      />
+
+      {/* View Login Details Modal */}
+      <Dialog open={viewLoginModalOpen} onOpenChange={setViewLoginModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Student Login Details</DialogTitle>
+            <DialogDescription>
+              Credentials for {studentToView?.firstName} {studentToView?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {studentToView && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Student Name</Label>
+                  <p className="font-medium">{studentToView.firstName} {studentToView.lastName}</p>
+                </div>
+                
+                <div className="pt-2 border-t border-blue-200 dark:border-blue-800">
+                  <Label className="text-xs text-muted-foreground">Login Options</Label>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Email:</span>
+                      <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
+                        {studentToView.email}
+                      </code>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Matric No:</span>
+                      <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
+                        {studentToView.matricNo}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-blue-200 dark:border-blue-800">
+                  <Label className="text-xs text-muted-foreground mb-2 block">How to Login</Label>
+                  <div className="text-sm space-y-1">
+                    <p className="text-muted-foreground">The student can use <strong>either</strong> their email or matric number as username along with their password.</p>
+                  </div>
+                </div>
+              </div>
+
+              <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200 text-xs">
+                  <strong>Note:</strong> For security reasons, passwords are not displayed. If the student has forgotten their password, use the password reset feature.
+                </AlertDescription>
+              </Alert>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(studentToView.email);
+                    toast.success('Email copied to clipboard');
+                  }}
+                >
+                  Copy Email
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(studentToView.matricNo);
+                    toast.success('Matric number copied to clipboard');
+                  }}
+                >
+                  Copy Matric No
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Modal */}
+      <Dialog open={resetPasswordModalOpen} onOpenChange={setResetPasswordModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Student Password</DialogTitle>
+            <DialogDescription>
+              Reset password for {studentToReset?.firstName} {studentToReset?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {studentToReset && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Student</Label>
+                  <p className="font-medium">{studentToReset.firstName} {studentToReset.lastName}</p>
+                  <p className="text-sm text-muted-foreground">{studentToReset.email}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">
+                  New Password <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="newPassword"
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showNewPassword ? (
+                        <XCircle className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={generateRandomPassword}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+                {newPassword && newPassword.length < 6 && (
+                  <p className="text-xs text-red-500">Password must be at least 6 characters</p>
+                )}
+              </div>
+
+              <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200 text-xs">
+                  <strong>Important:</strong> Make sure to save the new password and share it with the student. They will need it to login.
+                </AlertDescription>
+              </Alert>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setResetPasswordModalOpen(false);
+                    setNewPassword("");
+                    setStudentToReset(null);
+                  }}
+                  disabled={isResetting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleResetPasswordConfirm}
+                  disabled={isResetting || !newPassword || newPassword.length < 6}
+                >
+                  {isResetting ? "Resetting..." : "Reset Password"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Student Modal */}
       <DeleteDepartmentDialog

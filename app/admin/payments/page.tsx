@@ -50,7 +50,7 @@ export default function PaymentsPage() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (retryCount = 0) => {
     try {
       setLoading(true);
       
@@ -60,21 +60,44 @@ export default function PaymentsPage() {
         const paymentsResponse = await adminAPI.getPayments();
         paymentsData = paymentsResponse.data.data || paymentsResponse.data || [];
         setPayments(paymentsData);
-      } catch (paymentError) {
+      } catch (paymentError: any) {
         console.error('Failed to load payments:', paymentError);
+        
+        // Handle rate limiting with retry for payments
+        if (paymentError.response?.status === 429 && retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+          console.log(`Rate limited on payments. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return loadData(retryCount + 1);
+        }
         // Continue even if payments fail
       }
+      
+      // Add delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Try to load stats separately
       try {
         const statsResponse = await adminAPI.getPaymentStats();
         const statsData = statsResponse.data.data || statsResponse.data || {};
         setStats(statsData);
-      } catch (statsError) {
+      } catch (statsError: any) {
         console.error('Failed to load payment stats:', statsError);
+        
+        // Handle rate limiting with retry for stats
+        if (statsError.response?.status === 429 && retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000;
+          console.log(`Rate limited on stats. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return loadData(retryCount + 1);
+        }
+        
         console.log('Using fallback stats calculation from payment data');
         // Stats will remain null, fallback calculation will be used
       }
+      
+      // Add delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Try to get current payment amount from dedicated endpoint
       try {
@@ -83,8 +106,17 @@ export default function PaymentsPage() {
         if (amount) {
           setCurrentAmount(amount);
         }
-      } catch {
+      } catch (amountError: any) {
         console.log('Payment amount endpoint not available, using fallback');
+        
+        // Handle rate limiting with retry for amount
+        if (amountError.response?.status === 429 && retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000;
+          console.log(`Rate limited on amount. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return loadData(retryCount + 1);
+        }
+        
         // Fallback: Get current payment amount from first payment
         if (paymentsData.length > 0) {
           setCurrentAmount(paymentsData[0].amount || 0);

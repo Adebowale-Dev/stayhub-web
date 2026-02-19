@@ -7,7 +7,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 120000, // 120 second timeout (temporary fix for slow backend)
 });
 
 // Request interceptor - Add auth token
@@ -46,6 +46,8 @@ export const authAPI = {
 
   getProfile: () => api.get('/auth/profile'),
 
+  updateProfile: (data: Record<string, unknown>) => api.put('/auth/profile', data),
+
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
 
   resetPassword: (token: string, newPassword: string) =>
@@ -82,7 +84,11 @@ export const adminAPI = {
   getStudents: () => api.get('/admin/students'),
   createStudent: (data: Record<string, unknown>) => api.post('/admin/students', data),
   updateStudent: (id: string, data: Record<string, unknown>) => api.put(`/admin/students/${id}`, data),
+  updateStudentPassword: (id: string, password: string) => 
+    api.put(`/admin/students/${id}`, { password }, { timeout: 60000 }), // 60 second timeout for password reset
   deleteStudent: (id: string, permanent?: boolean) => api.delete(`/admin/students/${id}?permanent=${permanent || false}`),
+  forceDeleteStudent: (id: string) => api.post(`/admin/students/${id}/force-delete`, {}),
+  resetStudentPassword: (id: string, data: { password: string }) => api.patch(`/admin/students/${id}/password`, data),
   bulkUploadStudents: (formData: FormData) =>
     api.post('/admin/students/bulk-upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -121,7 +127,7 @@ export const studentAPI = {
   getHostels: () => api.get('/student/hostels'),
   getRooms: (hostelId: string) => api.get(`/student/hostels/${hostelId}/rooms`),
   getBunks: (roomId: string) => api.get(`/student/rooms/${roomId}/bunks`),
-  reserveRoom: (data: Record<string, unknown>) => api.post('/student/reserve', data),
+  reserveRoom: (data: Record<string, unknown>) => api.post('/student/reservations', data),
   getReservation: () => api.get('/student/reservation'),
 };
 
@@ -137,10 +143,11 @@ export const porterAPI = {
 
 // Payment API methods
 export const paymentAPI = {
-  getAmount: () => api.get('/payment/amount'),
-  initialize: (amount: number) => api.post('/payment/initialize', { amount }),
-  getStatus: () => api.get('/payment/status'),
-  verify: (reference: string) => api.get(`/payment/verify/${reference}`),
+  getAmount: () => api.get('/admin/payment/amount'),
+  initialize: (amount: number) => api.post('/student/payment/initialize', { amount }),
+  getStatus: () => api.get('/student/payment/status'),
+  verify: (reference: string) => api.get(`/student/payment/verify/${reference}`),
+  verifyWithCode: (paymentCode: string) => api.post('/student/payment/verify-code', { paymentCode }),
 };
 
 export default api;

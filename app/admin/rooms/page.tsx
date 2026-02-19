@@ -162,7 +162,21 @@ function RoomsPageContent() {
 
   // Group rooms by hostel
   const groupedData: HostelWithRooms[] = hostels.map((hostel) => {
-    const hostelRooms = rooms.filter((room) => room.hostel?._id === hostel._id);
+    const hostelRooms = rooms
+      .filter((room) => room.hostel?._id === hostel._id)
+      .sort((a, b) => {
+        // Extract numeric part from room numbers for proper sorting
+        const numA = parseInt(a.roomNumber.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.roomNumber.replace(/\D/g, '')) || 0;
+        
+        // If numbers are different, sort by number
+        if (numA !== numB) {
+          return numA - numB;
+        }
+        
+        // If numbers are same, sort alphabetically (for cases like 101A, 101B)
+        return a.roomNumber.localeCompare(b.roomNumber);
+      });
     
     return {
       hostel,
@@ -524,20 +538,31 @@ function RoomsPageContent() {
                             <p className="font-bold text-lg">{group.stats.total}</p>
                             <p className="text-xs text-muted-foreground">Total Rooms</p>
                           </div>
-                          <div className="text-center">
-                            <p className="font-bold text-lg text-blue-600">{group.stats.male}</p>
-                            <p className="text-xs text-muted-foreground">Male</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="font-bold text-lg text-pink-600">{group.stats.female}</p>
-                            <p className="text-xs text-muted-foreground">Female</p>
-                          </div>
+                          
+                          {/* Only show Male count for male or mixed hostels */}
+                          {(group.hostel.gender === 'male' || group.hostel.gender === 'mixed') && (
+                            <div className="text-center">
+                              <p className="font-bold text-lg text-blue-600">{group.stats.male}</p>
+                              <p className="text-xs text-muted-foreground">Male</p>
+                            </div>
+                          )}
+                          
+                          {/* Only show Female count for female or mixed hostels */}
+                          {(group.hostel.gender === 'female' || group.hostel.gender === 'mixed') && (
+                            <div className="text-center">
+                              <p className="font-bold text-lg text-pink-600">{group.stats.female}</p>
+                              <p className="text-xs text-muted-foreground">Female</p>
+                            </div>
+                          )}
+                          
+                          {/* Only show Mixed count if there are actually mixed rooms */}
                           {group.stats.mixed > 0 && (
                             <div className="text-center">
                               <p className="font-bold text-lg text-purple-600">{group.stats.mixed}</p>
                               <p className="text-xs text-muted-foreground">Mixed</p>
                             </div>
                           )}
+                          
                           <div className="text-center">
                             <p className="font-bold text-lg text-green-600">{group.stats.available}</p>
                             <p className="text-xs text-muted-foreground">Available</p>
@@ -576,7 +601,7 @@ function RoomsPageContent() {
                                 </TableCell>
                                 <TableCell className="text-center">
                                   <Badge variant="secondary" className="text-xs">
-                                    {room.level}L
+                                    {group.hostel.level || room.level}L
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-center">

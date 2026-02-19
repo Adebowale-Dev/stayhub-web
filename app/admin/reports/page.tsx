@@ -105,9 +105,70 @@ export default function ReportsPage() {
         adminAPI.getPaymentStats(),
       ]);
 
+      console.log('Students API Response:', studentsRes.data);
+      console.log('Hostels API Response:', hostelsRes.data);
+      
+      const studentsData = studentsRes.data.data || studentsRes.data || [];
+      console.log('Students data array:', studentsData);
+      
+      // Map backend student data to match UI expectations
+      const mappedStudents = studentsData.map((student: any) => ({
+        ...student,
+        paymentStatus: student.paymentStatus || student.payment?.status || 'pending',
+        roomAllocation: student.reservation ? {
+          hostel: student.reservation.hostel || student.reservation.bunk?.room?.hostel,
+          room: student.reservation.room || student.reservation.bunk?.room,
+          bunkNumber: student.reservation.bunk?.bunkNumber
+        } : (student.assignedHostel && student.assignedRoom) ? {
+          hostel: student.assignedHostel,
+          room: student.assignedRoom,
+          bunkNumber: student.assignedBunk?.bunkNumber
+        } : null
+      }));
+      
+      console.log('Mapped students:', mappedStudents);
+      console.log('Students with room allocation:', mappedStudents.filter((s: any) => s.roomAllocation));
+
+      const hostelsData = hostelsRes.data.data || hostelsRes.data || [];
+      console.log('Hostels data:', hostelsData);
+      console.log('First hostel details:', JSON.stringify(hostelsData[0], null, 2));
+
+      // Map hostel data to include missing fields
+      const mappedHostels = hostelsData.map((hostel: any) => {
+        // Calculate occupancy from student data
+        const studentsInHostel = mappedStudents.filter((s: any) => 
+          s.roomAllocation?.hostel?._id === hostel._id || 
+          s.roomAllocation?.hostel?.id === hostel._id
+        );
+        
+        const currentOccupants = studentsInHostel.length;
+        
+        // Get unique rooms occupied
+        const occupiedRoomIds = new Set(
+          studentsInHostel
+            .filter((s: any) => s.roomAllocation?.room?._id || s.roomAllocation?.room?.id)
+            .map((s: any) => s.roomAllocation.room._id || s.roomAllocation.room.id)
+        );
+        
+        const occupiedRooms = occupiedRoomIds.size;
+        const totalRooms = hostel.totalRooms || 0;
+        const capacity = hostel.capacity || totalRooms * 6;
+        
+        return {
+          ...hostel,
+          totalRooms,
+          occupiedRooms,
+          availableRooms: totalRooms - occupiedRooms,
+          capacity,
+          currentOccupants
+        };
+      });
+
+      console.log('Mapped hostels:', mappedHostels);
+
       setStats(statsRes.data.data || statsRes.data);
-      setStudents(studentsRes.data.data || studentsRes.data || []);
-      setHostels(hostelsRes.data.data || hostelsRes.data || []);
+      setStudents(mappedStudents);
+      setHostels(mappedHostels);
       setPayments(paymentsRes.data.data || paymentsRes.data || []);
       setPaymentStats(paymentStatsRes.data.data || paymentStatsRes.data);
     } catch (error) {
@@ -226,7 +287,7 @@ export default function ReportsPage() {
   }
 
   const studentsByPaymentStatus = {
-    paid: students.filter(s => s.paymentStatus === 'completed').length,
+    paid: students.filter(s => s.paymentStatus === 'completed' || s.paymentStatus === 'paid').length,
     pending: students.filter(s => s.paymentStatus === 'pending').length,
     failed: students.filter(s => s.paymentStatus === 'failed').length,
   };

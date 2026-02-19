@@ -18,7 +18,8 @@ import {
   AlertCircle,
   TrendingUp,
   Calendar,
-  Shield
+  Shield,
+  User
 } from 'lucide-react';
 
 interface PorterDashboardData {
@@ -40,6 +41,7 @@ export default function PorterDashboard() {
   const router = useRouter();
   const [dashboardData, setDashboardData] = useState<PorterDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -47,8 +49,77 @@ export default function PorterDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await porterAPI.getDashboard();
-      setDashboardData(response.data.data || response.data);
+      // Fetch dashboard data and students data
+      const [dashboardResponse, studentsResponse] = await Promise.all([
+        porterAPI.getDashboard(),
+        porterAPI.getStudents()
+      ]);
+      
+      console.log('Dashboard API response:', dashboardResponse.data);
+      console.log('Students API response:', studentsResponse.data);
+      
+      const dashboardInfo = dashboardResponse.data.data || dashboardResponse.data;
+      const studentsData = studentsResponse.data.data || studentsResponse.data || [];
+      
+      console.log('All students:', studentsData);
+      setStudents(studentsData);
+      
+      // Calculate stats from student data
+      const totalStudents = studentsData.length;
+      
+      // Count checked-in students (handle various status formats)
+      const checkedIn = studentsData.filter((s: any) => 
+        s.checkInStatus === 'checked-in' ||
+        s.checkInStatus === 'checked_in' ||
+        s.reservationStatus === 'checked_in' ||
+        s.reservationStatus === 'checked-in' ||
+        s.status === 'checked-in' ||
+        s.status === 'checked_in'
+      ).length;
+      
+      // Count pending (students with room assignments but not checked in)
+      const pendingCheckIn = studentsData.filter((s: any) => {
+        const hasAssignment = s.assignedRoom || s.roomAssignment || s.reservation?.room;
+        const isNotCheckedIn = !(
+          s.checkInStatus === 'checked-in' ||
+          s.checkInStatus === 'checked_in' ||
+          s.reservationStatus === 'checked_in' ||
+          s.reservationStatus === 'checked-in' ||
+          s.status === 'checked-in' ||
+          s.status === 'checked_in'
+        );
+        return hasAssignment && isNotCheckedIn;
+      }).length;
+      
+      // Count today's check-ins
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const todayCheckIns = studentsData.filter((s: any) => {
+        const checkInDate = s.checkInDate || s.reservation?.checkedInAt;
+        if (!checkInDate) return false;
+        const date = new Date(checkInDate);
+        date.setHours(0, 0, 0, 0);
+        return date.getTime() === today.getTime();
+      }).length;
+      
+      // Merge calculated stats with dashboard data
+      const mergedData = {
+        ...dashboardInfo,
+        totalStudents,
+        checkedIn,
+        pendingCheckIn,
+        todayCheckIns
+      };
+      
+      console.log('Calculated stats:', {
+        totalStudents,
+        checkedIn,
+        pendingCheckIn,
+        todayCheckIns
+      });
+      
+      setDashboardData(mergedData);
     } catch (error) {
       console.error('Failed to fetch dashboard:', error);
     } finally {
@@ -86,7 +157,7 @@ export default function PorterDashboard() {
           {/* Header */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <User className="h-8 w-8 text-blue-600 dark:text-blue-400" />
               <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
                 Porter Dashboard
               </h2>
@@ -202,7 +273,7 @@ export default function PorterDashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
+                <User className="h-5 w-5" />
                 Quick Actions
               </CardTitle>
               <CardDescription>

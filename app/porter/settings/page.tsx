@@ -16,7 +16,8 @@ import {
   EyeOff,
   ArrowLeft,
   KeyRound,
-  AlertCircle
+  AlertCircle,
+  User
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -287,7 +288,7 @@ export default function PorterSettings() {
                   variant="outline"
                   onClick={() => router.push('/porter/profile')}
                 >
-                  <Shield className="h-4 w-4 mr-2" />
+                  <User className="h-4 w-4 mr-2" />
                   View Profile
                 </Button>
                 <Button

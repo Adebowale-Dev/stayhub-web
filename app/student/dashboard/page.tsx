@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ActionDropdown } from '@/components/ui/action-dropdown';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Ticket, CreditCard, Building2, Home, FileText, Settings, CheckCircle2, Clock, AlertCircle, MapPin, Users, Bed } from 'lucide-react';
+import { Ticket, CreditCard, Building2, Home, FileText, Settings, CheckCircle2, Clock, AlertCircle, MapPin, Users, Bed, User } from 'lucide-react';
 
 interface Reservation {
   _id: string;
@@ -39,6 +39,21 @@ interface StudentDashboardData {
   availableHostels?: number;
   reservation?: Reservation;
   payment?: Payment;
+  profile?: {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    matricNo?: string;
+    matricNumber?: string;
+    email: string;
+    phoneNumber?: string;
+    address?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    college?: { name: string };
+    department?: { name: string };
+    level?: string | number;
+  };
   student?: {
     name: string;
     matricNumber: string;
@@ -57,12 +72,35 @@ export default function StudentDashboard() {
     fetchDashboardData();
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (retryCount = 0) => {
     try {
       const response = await studentAPI.getDashboard();
-      setDashboardData(response.data.data || response.data);
-    } catch (error) {
+      console.log('Dashboard API Response:', response.data);
+      const data = response.data.data || response.data;
+      console.log('Dashboard Data:', data);
+      console.log('Profile:', data?.profile);
+      console.log('Student Name:', data?.profile?.name || `${data?.profile?.firstName || ''} ${data?.profile?.lastName || ''}`.trim());
+      
+      // Map backend status fields to boolean flags
+      const mappedData = {
+        ...data,
+        hasPaid: data.paymentStatus === 'paid' || data.hasPaid,
+        hasReservation: data.reservationStatus === 'checked_in' || data.reservationStatus === 'confirmed' || data.hasReservation
+      };
+      
+      console.log('Mapped Data:', { hasPaid: mappedData.hasPaid, hasReservation: mappedData.hasReservation });
+      
+      setDashboardData(mappedData);
+    } catch (error: any) {
       console.error('Failed to fetch dashboard:', error);
+      
+      // Handle rate limiting with retry
+      if (error.response?.status === 429 && retryCount < 3) {
+        const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+        console.log(`Rate limited. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return fetchDashboardData(retryCount + 1);
+      }
     } finally {
       setLoading(false);
     }
@@ -98,14 +136,35 @@ export default function StudentDashboard() {
     }
   };
 
+  const isProfileComplete = () => {
+    if (!dashboardData?.profile) return false;
+    
+    const profile = dashboardData.profile;
+    const requiredFields = [
+      profile.firstName || profile.name,
+      profile.email,
+      profile.phoneNumber,
+      profile.address,
+      profile.dateOfBirth,
+      profile.gender,
+      profile.matricNo || profile.matricNumber,
+      profile.level,
+      profile.college,
+      profile.department
+    ];
+    
+    return requiredFields.every(field => field && field !== '');
+  };
+
   const getCompletionProgress = () => {
     let completed = 0;
-    const total = 2; // Payment and Reservation
+    const total = 3; // Profile, Payment, and Reservation
     
+    if (isProfileComplete()) completed++;
     if (dashboardData?.hasPaid) completed++;
     if (dashboardData?.hasReservation) completed++;
     
-    return (completed / total) * 100;
+    return Number(((completed / total) * 100).toFixed(2));
   };
 
   if (loading) {
@@ -133,11 +192,11 @@ export default function StudentDashboard() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                Welcome back, {dashboardData?.student?.name?.split(' ')[0] || 'Student'}!
+                Welcome back, {dashboardData?.profile?.firstName || dashboardData?.student?.name?.split(' ')[0] || 'Student'} 👋
               </h2>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
-                {dashboardData?.student?.matricNumber && `${dashboardData.student.matricNumber} • `}
-                {dashboardData?.student?.department || 'Manage your hostel accommodation'}
+                {(dashboardData?.profile?.matricNo || dashboardData?.student?.matricNumber) && `${dashboardData?.profile?.matricNo || dashboardData?.student?.matricNumber} • `}
+                {dashboardData?.profile?.department?.name || dashboardData?.student?.department || 'Manage your hostel accommodation'}
               </p>
             </div>
             <ActionDropdown
@@ -178,7 +237,22 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               <Progress value={completionProgress} className="h-3" />
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                    isProfileComplete() 
+                      ? 'bg-green-500/20 text-green-700 dark:text-green-400' 
+                      : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  }`}>
+                    {isProfileComplete() ? <CheckCircle2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Profile</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      {isProfileComplete() ? 'Complete' : 'Incomplete'}
+                    </p>
+                  </div>
+                </div>
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
                   <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                     dashboardData?.hasPaid 
@@ -379,7 +453,7 @@ export default function StudentDashboard() {
           </div>
 
           {/* Next Steps Card */}
-          {(!dashboardData?.hasPaid || !dashboardData?.hasReservation) && (
+          {(!isProfileComplete() || !dashboardData?.hasPaid || !dashboardData?.hasReservation) && (
             <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -389,15 +463,38 @@ export default function StudentDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {!dashboardData?.hasPaid && (
+                  {!isProfileComplete() && (
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-900/30">
                       <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
                         1
                       </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">Complete Your Profile</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Fill in all required information in your profile
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="mt-2"
+                          onClick={() => router.push('/student/profile')}
+                        >
+                          Go to Profile
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {!dashboardData?.hasPaid && (
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-900/30">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
+                        {isProfileComplete() ? '1' : '2'}
+                      </div>
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">Complete Payment</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Pay your accommodation fee to unlock hostel selection
+                          {isProfileComplete() 
+                            ? 'Pay your accommodation fee to unlock hostel selection' 
+                            : 'Available after profile completion'}
                         </p>
                       </div>
                     </div>
@@ -405,14 +502,14 @@ export default function StudentDashboard() {
                   {!dashboardData?.hasReservation && (
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-900/30">
                       <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
-                        {dashboardData?.hasPaid ? '1' : '2'}
+                        {isProfileComplete() && dashboardData?.hasPaid ? '1' : isProfileComplete() || dashboardData?.hasPaid ? '2' : '3'}
                       </div>
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">Select Your Hostel</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {dashboardData?.hasPaid 
+                          {isProfileComplete() && dashboardData?.hasPaid 
                             ? 'Browse available hostels and make your reservation' 
-                            : 'Available after payment completion'}
+                            : 'Available after profile completion and payment'}
                         </p>
                       </div>
                     </div>

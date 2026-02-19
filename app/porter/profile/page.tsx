@@ -59,7 +59,29 @@ export default function PorterProfile() {
   const fetchProfile = async () => {
     try {
       const response = await authAPI.getProfile();
-      const profileData = response.data.data || response.data;
+      console.log('Profile API response:', response.data);
+      
+      const rawData = response.data.data || response.data;
+      console.log('Raw profile data:', rawData);
+      
+      // Backend returns data inside 'user' object with firstName/lastName
+      const userData = rawData.user || rawData;
+      
+      // Map backend fields to frontend expected format
+      const profileData: PorterProfile = {
+        _id: userData._id,
+        name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.name,
+        email: userData.email,
+        phoneNumber: userData.phoneNumber,
+        assignedHostel: userData.assignedHostel,
+        employeeId: userData.employeeId,
+        joinedDate: userData.joinedDate || userData.createdAt,
+        status: userData.status,
+        shiftSchedule: userData.shiftSchedule
+      };
+      
+      console.log('Mapped profile data:', profileData);
+      
       setProfile(profileData);
       setPhoneNumber(profileData.phoneNumber || '');
     } catch (error) {
@@ -275,7 +297,7 @@ export default function PorterProfile() {
                 {profile?.employeeId && (
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                      <Shield className="h-4 w-4" />
+                      <User className="h-4 w-4" />
                       Employee ID
                     </Label>
                     <Input 

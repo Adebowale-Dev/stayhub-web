@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   UserCheck, 
   Search, 
@@ -20,15 +21,41 @@ import {
   Mail,
   Phone,
   User,
-  Calendar
+  Calendar,
+  Users
 } from 'lucide-react';
 
 interface PendingStudent {
   _id: string;
-  name: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone?: string;
+  phoneNumber?: string;
   matricNumber?: string;
+  matricNo?: string;
+  reservation?: {
+    _id: string;
+    status: string;
+    room?: {
+      _id: string;
+      roomNumber: string;
+      block?: string;
+      floor?: number;
+    };
+    bunk?: {
+      _id: string;
+      bunkNumber: number;
+      position: string;
+    };
+    hostel?: {
+      _id: string;
+      name: string;
+    };
+    reservedAt?: string;
+    checkedInAt?: string;
+  };
   roomAssignment?: {
     room: {
       _id: string;
@@ -37,18 +64,25 @@ interface PendingStudent {
     };
     bunkNumber?: number;
   };
-  checkInStatus?: 'checked-in' | 'pending' | 'not-checked-in';
-  department?: string;
-  level?: string;
+  checkInStatus?: 'checked-in' | 'checked_in' | 'pending' | 'not-checked-in' | 'active' | 'confirmed' | 'checkedIn';
+  status?: string;
+  department?: {
+    name: string;
+  } | string;
+  level?: string | number;
   reservationDate?: string;
+  checkInDate?: string;
 }
 
 export default function PorterCheckInPage() {
   const [pendingStudents, setPendingStudents] = useState<PendingStudent[]>([]);
+  const [allStudents, setAllStudents] = useState<PendingStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const [releasingExpired, setReleasingExpired] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [bulkCheckingIn, setBulkCheckingIn] = useState(false);
 
   useEffect(() => {
     // Debug: Check current user data
@@ -69,10 +103,109 @@ export default function PorterCheckInPage() {
     setLoading(true);
     try {
       const response = await porterAPI.getStudents();
-      console.log('Students API response:', response.data);
-      const allStudents = response.data.data || response.data || [];
-      // Filter only pending students
-      const pending = allStudents.filter((s: PendingStudent) => s.checkInStatus === 'pending');
+      console.log('Check-in API response:', response.data);
+      const studentsData = response.data.data || response.data || [];
+      console.log('All students:', studentsData);
+      console.log('Total students count:', studentsData.length);
+      
+      // Log first student structure to see available fields
+      if (studentsData.length > 0) {
+        console.log('First student structure:', studentsData[0]);
+        console.log('assignedRoom:', studentsData[0].assignedRoom);
+        console.log('assignedBunk:', studentsData[0].assignedBunk);
+        console.log('reservationStatus:', studentsData[0].reservationStatus);
+      }
+      
+      // Map students with flexible field mapping
+      const mappedStudents = studentsData.map((student: any) => {
+        // Check for room assignment in multiple possible locations
+        let roomAssignment = null;
+        
+        if (student.assignedRoom) {
+          roomAssignment = {
+            room: {
+              _id: typeof student.assignedRoom === 'object' ? student.assignedRoom._id : student.assignedRoom,
+              roomNumber: typeof student.assignedRoom === 'object' ? student.assignedRoom.roomNumber : 'N/A',
+              block: typeof student.assignedRoom === 'object' ? student.assignedRoom.block : undefined,
+              floor: typeof student.assignedRoom === 'object' ? student.assignedRoom.floor : undefined
+            },
+            bunkNumber: typeof student.assignedBunk === 'object' ? student.assignedBunk.bunkNumber : student.assignedBunk
+          };
+        } else if (student.roomAssignment) {
+          roomAssignment = student.roomAssignment;
+        } else if (student.reservation) {
+          roomAssignment = {
+            room: {
+              _id: student.reservation.room?._id || student.reservation.room,
+              roomNumber: student.reservation.room?.roomNumber || 'N/A',
+              block: student.reservation.room?.block,
+              floor: student.reservation.room?.floor
+            },
+            bunkNumber: student.reservation.bunk?.bunkNumber
+          };
+        }
+
+        const checkInStatus = 
+          student.checkInStatus || 
+          student.reservationStatus || 
+          student.reservation?.status || 
+          student.status ||
+          (student.assignedRoom ? 'confirmed' : 'not-checked-in');
+
+        return {
+          _id: student._id,
+          name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.email,
+          phone: student.phone || student.phoneNumber,
+          matricNumber: student.matricNumber || student.matricNo,
+          reservation: student.reservation,
+          roomAssignment,
+          checkInStatus,
+          status: student.status,
+          department: student.department?.name || student.department,
+          level: student.level,
+          reservationDate: student.reservationDate || student.reservation?.reservedAt,
+          checkInDate: student.checkInDate || student.reservation?.checkedInAt
+        };
+      });
+      
+      console.log('Mapped students:', mappedStudents);
+      
+      // Store all students for stats calculation
+      setAllStudents(mappedStudents);
+      
+      // Filter for students with room assignments who are not checked in
+      const pending = mappedStudents.filter((s: PendingStudent) => {
+        const hasAssignment = s.roomAssignment !== null;
+        
+        // Check all possible "checked in" status values (handle both underscore and hyphen formats)
+        const isCheckedIn = 
+          s.checkInStatus === 'checked-in' ||
+          s.checkInStatus === 'checked_in' ||
+          s.checkInStatus === 'active' ||
+          s.checkInStatus === 'checkedIn' ||
+          s.status === 'checked-in' ||
+          s.status === 'checked_in' ||
+          s.status === 'active';
+        
+        const isNotCheckedIn = !isCheckedIn;
+        
+        console.log(`Student ${s.name}:`, {
+          hasAssignment,
+          checkInStatus: s.checkInStatus,
+          status: s.status,
+          isCheckedIn,
+          isNotCheckedIn,
+          willShow: hasAssignment && isNotCheckedIn
+        });
+        
+        return hasAssignment && isNotCheckedIn;
+      });
+      
+      console.log('Filtered pending students:', pending);
+      console.log('Pending count:', pending.length);
       setPendingStudents(pending);
     } catch (error: unknown) {
       console.error('Failed to load pending students:', error);
@@ -104,12 +237,18 @@ export default function PorterCheckInPage() {
   const handleCheckIn = async (studentId: string) => {
     setCheckingIn(studentId);
     try {
-      await porterAPI.checkInStudent(studentId);
+      console.log('Checking in student:', studentId);
+      const response = await porterAPI.checkInStudent(studentId);
+      console.log('Check-in response:', response.data);
       alert('Student checked in successfully!');
-      loadPendingStudents();
+      
+      // Reload the students list to get updated data
+      await loadPendingStudents();
     } catch (error) {
       console.error('Failed to check in student:', error);
-      alert('Failed to check in student. Please try again.');
+      const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+      const errorMessage = axiosError.response?.data?.message || 'Failed to check in student. Please try again.';
+      alert(errorMessage);
     } finally {
       setCheckingIn(null);
     }
@@ -133,6 +272,74 @@ export default function PorterCheckInPage() {
     }
   };
 
+  const handleSelectStudent = (studentId: string, checked: boolean) => {
+    const newSelected = new Set(selectedStudents);
+    if (checked) {
+      newSelected.add(studentId);
+    } else {
+      newSelected.delete(studentId);
+    }
+    setSelectedStudents(newSelected);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(filteredStudents.map(s => s._id));
+      setSelectedStudents(allIds);
+    } else {
+      setSelectedStudents(new Set());
+    }
+  };
+
+  const handleBulkCheckIn = async () => {
+    if (selectedStudents.size === 0) {
+      alert('Please select at least one student to check in.');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to check in ${selectedStudents.size} student(s)?`)) {
+      return;
+    }
+
+    setBulkCheckingIn(true);
+    let successCount = 0;
+    let failCount = 0;
+    const errors: string[] = [];
+
+    try {
+      // Check in students one by one (in parallel for speed)
+      const checkInPromises = Array.from(selectedStudents).map(async (studentId) => {
+        try {
+          await porterAPI.checkInStudent(studentId);
+          successCount++;
+        } catch (error) {
+          failCount++;
+          const student = pendingStudents.find(s => s._id === studentId);
+          errors.push(student?.name || studentId);
+          console.error(`Failed to check in ${studentId}:`, error);
+        }
+      });
+
+      await Promise.all(checkInPromises);
+
+      // Show result
+      if (failCount === 0) {
+        alert(`✅ Successfully checked in ${successCount} student(s)!`);
+      } else {
+        alert(`✅ Checked in ${successCount} student(s)\n❌ Failed: ${failCount} student(s)\n\nFailed students: ${errors.join(', ')}`);
+      }
+
+      // Clear selection and reload
+      setSelectedStudents(new Set());
+      await loadPendingStudents();
+    } catch (error) {
+      console.error('Bulk check-in error:', error);
+      alert('An error occurred during bulk check-in. Please try again.');
+    } finally {
+      setBulkCheckingIn(false);
+    }
+  };
+
   const filteredStudents = pendingStudents.filter((student) => {
     const matchesSearch = 
       (student.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
@@ -141,6 +348,26 @@ export default function PorterCheckInPage() {
 
     return matchesSearch;
   });
+
+  const allFilteredSelected = filteredStudents.length > 0 && 
+    filteredStudents.every(s => selectedStudents.has(s._id));
+
+  // Calculate today's check-ins
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const todaysCheckIns = allStudents.filter(student => {
+    if (!student.checkInDate) return false;
+    const checkInDate = new Date(student.checkInDate);
+    checkInDate.setHours(0, 0, 0, 0);
+    return checkInDate.getTime() === today.getTime() && 
+           (student.checkInStatus === 'checked_in' || student.checkInStatus === 'checked-in');
+  }).length;
+
+  // Calculate total checked in students
+  const totalCheckedIn = allStudents.filter(student => 
+    student.checkInStatus === 'checked_in' || student.checkInStatus === 'checked-in'
+  ).length;
 
   if (loading) {
     return (
@@ -197,7 +424,7 @@ export default function PorterCheckInPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>Today&apos;s Check-Ins</CardDescription>
-                <CardTitle className="text-3xl">0</CardTitle>
+                <CardTitle className="text-3xl">{todaysCheckIns}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -209,13 +436,13 @@ export default function PorterCheckInPage() {
 
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Filtered Results</CardDescription>
-                <CardTitle className="text-3xl">{filteredStudents.length}</CardTitle>
+                <CardDescription>Total Checked In</CardDescription>
+                <CardTitle className="text-3xl">{totalCheckedIn}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Search className="h-4 w-4" />
-                  <span>Matching search</span>
+                  <UserCheck className="h-4 w-4" />
+                  <span>All checked-in students</span>
                 </div>
               </CardContent>
             </Card>
@@ -232,9 +459,9 @@ export default function PorterCheckInPage() {
             </Alert>
           )}
 
-          {/* Search */}
+          {/* Search and Bulk Actions */}
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 space-y-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -244,6 +471,48 @@ export default function PorterCheckInPage() {
                   className="pl-10"
                 />
               </div>
+
+              {/* Bulk Actions Bar */}
+              {filteredStudents.length > 0 && (
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="select-all"
+                        checked={allFilteredSelected}
+                        onCheckedChange={handleSelectAll}
+                      />
+                      <label 
+                        htmlFor="select-all" 
+                        className="text-sm font-medium cursor-pointer select-none"
+                      >
+                        Select All ({filteredStudents.length})
+                      </label>
+                    </div>
+                    
+                    {selectedStudents.size > 0 && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Users className="h-3 w-3" />
+                        {selectedStudents.size} Selected
+                      </Badge>
+                    )}
+                  </div>
+
+                  {selectedStudents.size > 0 && (
+                    <Button 
+                      onClick={handleBulkCheckIn}
+                      disabled={bulkCheckingIn}
+                      className="gap-2"
+                    >
+                      <UserCheck className="h-4 w-4" />
+                      {bulkCheckingIn 
+                        ? `Checking In ${selectedStudents.size}...` 
+                        : `Check In ${selectedStudents.size} Student${selectedStudents.size > 1 ? 's' : ''}`
+                      }
+                    </Button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -268,21 +537,29 @@ export default function PorterCheckInPage() {
               {filteredStudents.map((student) => (
                 <Card key={student._id} className="hover:shadow-lg transition-shadow">
                   <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                          <User className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{student.name}</CardTitle>
-                          {student.matricNumber && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {student.matricNumber}
-                            </p>
-                          )}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <Checkbox
+                          id={`student-${student._id}`}
+                          checked={selectedStudents.has(student._id)}
+                          onCheckedChange={(checked) => handleSelectStudent(student._id, checked as boolean)}
+                          className="mt-1"
+                        />
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                            <User className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg truncate">{student.name}</CardTitle>
+                            {student.matricNumber && (
+                              <p className="text-xs text-muted-foreground mt-1 truncate">
+                                {student.matricNumber}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800">
+                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800 flex-shrink-0">
                         <Clock className="h-3 w-3 mr-1" />
                         Pending
                       </Badge>

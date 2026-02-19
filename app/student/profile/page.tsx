@@ -31,7 +31,8 @@ interface StudentProfile {
   _id: string;
   name: string;
   email: string;
-  matricNumber: string;
+  matricNumber?: string;
+  matricNo?: string;
   phoneNumber?: string;
   dateOfBirth?: string;
   address?: string;
@@ -43,11 +44,29 @@ interface StudentProfile {
     _id: string;
     name: string;
   };
-  level?: string;
+  level?: string | number;
   gender?: string;
   paymentStatus?: string;
   reservationStatus?: string;
   createdAt: string;
+  reservation?: {
+    _id: string;
+    hostel: {
+      _id: string;
+      name: string;
+      location?: string;
+    };
+    room: {
+      _id: string;
+      roomNumber: string;
+      floor?: number;
+    };
+    bunk?: {
+      _id: string;
+      bunkNumber: number;
+    };
+    status: string;
+  };
 }
 
 export default function StudentProfile() {
@@ -56,7 +75,16 @@ export default function StudentProfile() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editedProfile, setEditedProfile] = useState<Partial<StudentProfile>>({});
+  const [editedProfile, setEditedProfile] = useState<{
+    name?: string;
+    email?: string;
+    phoneNumber?: string;
+    address?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    matricNumber?: string;
+    level?: string;
+  }>({});
 
   useEffect(() => {
     fetchProfile();
@@ -65,9 +93,24 @@ export default function StudentProfile() {
   const fetchProfile = async () => {
     try {
       const response = await authAPI.getProfile();
-      const profileData = response.data.data || response.data;
+      console.log('Profile API Response:', response.data);
+      
+      // Backend returns data in "user" field, not "data"
+      const profileData = response.data.user || response.data.data || response.data;
+      console.log('Profile Data:', profileData);
+      
       setProfile(profileData);
-      setEditedProfile(profileData);
+      // Store all editable fields
+      setEditedProfile({
+        name: profileData.name || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim(),
+        email: profileData.email || '',
+        phoneNumber: profileData.phoneNumber || '',
+        address: profileData.address || '',
+        dateOfBirth: profileData.dateOfBirth || '',
+        gender: profileData.gender || '',
+        matricNumber: profileData.matricNo || profileData.matricNumber || '',
+        level: profileData.level?.toString() || '',
+      });
     } catch (error) {
       console.error('Failed to fetch profile:', error);
     } finally {
@@ -77,33 +120,88 @@ export default function StudentProfile() {
 
   const handleEdit = () => {
     setEditing(true);
-    setEditedProfile({ ...profile });
+    // Copy all editable fields
+    setEditedProfile({
+      name: profile?.name || '',
+      email: profile?.email || '',
+      phoneNumber: profile?.phoneNumber || '',
+      address: profile?.address || '',
+      dateOfBirth: profile?.dateOfBirth || '',
+      gender: profile?.gender || '',
+      matricNumber: profile?.matricNumber || '',
+      level: profile?.level?.toString() || '',
+    });
   };
 
   const handleCancel = () => {
     setEditing(false);
-    setEditedProfile({ ...profile });
+    // Reset all editable fields
+    setEditedProfile({
+      name: profile?.name || '',
+      email: profile?.email || '',
+      phoneNumber: profile?.phoneNumber || '',
+      address: profile?.address || '',
+      dateOfBirth: profile?.dateOfBirth || '',
+      gender: profile?.gender || '',
+      matricNumber: profile?.matricNumber || '',
+      level: profile?.level?.toString() || '',
+    });
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      // TODO: Implement update profile API call
-      // await authAPI.updateProfile(editedProfile);
+      // Send data with backend field names
+      const updatePayload = {
+        name: editedProfile.name,
+        email: editedProfile.email,
+        phoneNumber: editedProfile.phoneNumber,
+        address: editedProfile.address,
+        dateOfBirth: editedProfile.dateOfBirth,
+        gender: editedProfile.gender,
+        matricNo: editedProfile.matricNumber, // Backend uses matricNo, not matricNumber
+        level: editedProfile.level ? parseInt(editedProfile.level) : undefined, // Convert to number
+      };
+
+      const response = await authAPI.updateProfile(updatePayload);
       
-      // For now, just update local state
-      setProfile({ ...profile, ...editedProfile } as StudentProfile);
+      // Backend returns updated data in "user" field
+      const updatedProfile = response.data.user || response.data.data || response.data;
+      setProfile(updatedProfile);
+      
+      // Update editedProfile with all editable fields from response
+      setEditedProfile({
+        name: updatedProfile.name || `${updatedProfile.firstName || ''} ${updatedProfile.lastName || ''}`.trim(),
+        email: updatedProfile.email || '',
+        phoneNumber: updatedProfile.phoneNumber || '',
+        address: updatedProfile.address || '',
+        dateOfBirth: updatedProfile.dateOfBirth || '',
+        gender: updatedProfile.gender || '',
+        matricNumber: updatedProfile.matricNo || updatedProfile.matricNumber || '',
+        level: updatedProfile.level?.toString() || '',
+      });
+      
       setEditing(false);
       alert('Profile updated successfully!');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to update profile:', error);
-      alert('Failed to update profile. Please try again.');
+      
+      const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+      let errorMessage = 'Failed to update profile. Please try again.';
+      
+      if (axiosError.response?.status === 404) {
+        errorMessage = 'Update profile endpoint not found. Please contact the administrator.';
+      } else if (axiosError.response?.data?.message) {
+        errorMessage = axiosError.response.data.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleInputChange = (field: keyof StudentProfile, value: string) => {
+  const handleInputChange = (field: 'name' | 'email' | 'phoneNumber' | 'address' | 'dateOfBirth' | 'gender' | 'matricNumber' | 'level', value: string) => {
     setEditedProfile({ ...editedProfile, [field]: value });
   };
 
@@ -223,15 +321,15 @@ export default function StudentProfile() {
                       {profile?.name}
                     </h3>
                     <div className="flex gap-2 flex-wrap">
-                      {getStatusBadge(profile?.paymentStatus)}
-                      {getStatusBadge(profile?.reservationStatus)}
+                      {/* {getStatusBadge(profile?.paymentStatus)}
+                      {getStatusBadge(profile?.reservationStatus)} */}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                       <GraduationCap className="h-4 w-4 text-blue-500" />
                       <span className="font-medium">Matric:</span>
-                      <span>{profile?.matricNumber}</span>
+                      <span>{profile?.matricNo || profile?.matricNumber}</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                       <Mail className="h-4 w-4 text-blue-500" />
@@ -258,6 +356,86 @@ export default function StudentProfile() {
             </CardContent>
           {/* </Card> */}
 
+          {/* Hostel Assignment Card - Full Width */}
+          {profile?.reservation && (
+            <Card className="border-l-4 border-l-blue-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Home className="h-5 w-5 text-blue-500" />
+                  Hostel Assignment
+                </CardTitle>
+                <CardDescription>
+                  Your assigned room details
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
+                      <Building2 className="h-4 w-4" />
+                      Hostel Name
+                    </Label>
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-md">
+                      <p className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+                        {profile.reservation.hostel.name}
+                      </p>
+                      {profile.reservation.hostel.location && (
+                        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                          {profile.reservation.hostel.location}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
+                      <Home className="h-4 w-4" />
+                      Room Number
+                    </Label>
+                    <div className="p-3 bg-green-50 dark:bg-green-950 rounded-md">
+                      <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                        {profile.reservation.room.roomNumber}
+                      </p>
+                      {profile.reservation.room.floor && (
+                        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                          Floor {profile.reservation.room.floor}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {profile.reservation.bunk && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
+                        <Home className="h-4 w-4" />
+                        Bunk Number
+                      </Label>
+                      <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-md">
+                        <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                          {profile.reservation.bunk.bunkNumber}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex items-center gap-2">
+                  <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    {profile.reservation.status === 'checked_in' ? 'Checked In' : 'Reserved'}
+                  </Badge>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => router.push('/student/reservation')}
+                  >
+                    View Full Details
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid gap-6 md:grid-cols-2">
             {/* Personal Information */}
             <Card>
@@ -279,7 +457,7 @@ export default function StudentProfile() {
                   <Input 
                     value={editing ? (editedProfile.name || '') : (profile?.name || '')} 
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    disabled={!editing} 
+                    disabled={!editing}
                     className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
                   />
                 </div>
@@ -292,7 +470,7 @@ export default function StudentProfile() {
                   <Input 
                     value={editing ? (editedProfile.email || '') : (profile?.email || '')} 
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    disabled={!editing} 
+                    disabled={!editing}
                     className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
                   />
                 </div>
@@ -343,7 +521,6 @@ export default function StudentProfile() {
                       <option value="">Select gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
-                      <option value="other">Other</option>
                     </select>
                   ) : (
                     <Input 
@@ -387,7 +564,12 @@ export default function StudentProfile() {
                     <GraduationCap className="h-4 w-4" />
                     Matriculation Number
                   </Label>
-                  <Input value={profile?.matricNumber || ''} disabled className="bg-gray-50 dark:bg-gray-900" />
+                  <Input 
+                    value={editing ? (editedProfile.matricNumber || '') : (profile?.matricNo || profile?.matricNumber || '')} 
+                    onChange={(e) => handleInputChange('matricNumber', e.target.value)}
+                    disabled={!editing}
+                    className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -419,11 +601,27 @@ export default function StudentProfile() {
                     <GraduationCap className="h-4 w-4" />
                     Level
                   </Label>
-                  <Input 
-                    value={profile?.level || 'Not provided'} 
-                    disabled 
-                    className="bg-gray-50 dark:bg-gray-900" 
-                  />
+                  {editing ? (
+                    <select 
+                      value={editedProfile.level || ''}
+                      onChange={(e) => handleInputChange('level', e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                      aria-label="Select level"
+                    >
+                      <option value="">Select level</option>
+                      <option value="100">100 Level</option>
+                      <option value="200">200 Level</option>
+                      <option value="300">300 Level</option>
+                      <option value="400">400 Level</option>
+                      <option value="500">500 Level</option>
+                    </select>
+                  ) : (
+                    <Input 
+                      value={profile?.level ? `${profile.level} Level` : 'Not provided'} 
+                      disabled 
+                      className="bg-gray-50 dark:bg-gray-900" 
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">

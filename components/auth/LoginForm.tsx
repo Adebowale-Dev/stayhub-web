@@ -35,11 +35,20 @@ export default function LoginForm() {
   });
 
   const onSubmit = async (data: LoginFormData) => {
+    await performLogin(data, 0);
+  };
+
+  const performLogin = async (data: LoginFormData, retryCount: number) => {
     try {
       setLoading(true);
       setError(null);
 
+      console.log('Attempting login with:', { identifier: data.identifier });
+      console.log('API URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api');
+
       const response = await authAPI.login(data);
+      
+      console.log('Login response:', response.data);
       
       // Backend returns: { success, message, token, user: { id, email, firstName, lastName, role, firstLogin } }
       const { token, user } = response.data;
@@ -59,13 +68,57 @@ export default function LoginForm() {
       // Store auth data (persists to localStorage)
       setAuth(normalizedUser, token);
 
+      console.log('Auth set successfully, redirecting to:', useAuthStore.getState().getRedirectPath());
+
       // Redirect based on role
       const redirectPath = useAuthStore.getState().getRedirectPath();
       router.replace(redirectPath);
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      const message = error.response?.data?.message || 'Login failed. Please try again.';
-      setError(message);
+      console.error('Login error:', err);
+      
+      const error = err as { 
+        response?: { 
+          status?: number;
+          data?: { message?: string; error?: string } 
+        };
+        code?: string;
+        message?: string;
+      };
+
+      // Handle rate limiting with retry
+      if (error.response?.status === 429 && retryCount < 3) {
+        const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+        setError(`Too many requests. Retrying in ${delay / 1000} seconds...`);
+        console.log(`Rate limited. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return performLogin(data, retryCount + 1);
+      }
+
+      // Handle network errors
+      if (!error.response) {
+        if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+          setError('⚠️ Connection timeout. Please check if the backend server is running on port 5000.');
+        } else if (error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
+          setError('⚠️ Cannot connect to server. Please ensure the backend is running at http://localhost:5000');
+        } else {
+          setError('⚠️ Connection failed. Please check your internet connection and ensure the backend server is running.');
+        }
+        return;
+      }
+
+      // Handle specific HTTP errors
+      if (error.response?.status === 429) {
+        setError('Too many login attempts. Please wait a moment and try again.');
+      } else if (error.response?.status === 401) {
+        setError('Invalid email/matric number or password. Please check your credentials.');
+      } else if (error.response?.status === 404) {
+        setError('Login endpoint not found. Please ensure the backend is properly configured.');
+      } else {
+        const message = error.response?.data?.message || 
+                       error.response?.data?.error || 
+                       'Login failed. Please try again.';
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
