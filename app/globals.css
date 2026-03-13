@@ -228,6 +228,28 @@
   }
 }
 
+/* Force light theme — overrides dark CSS variables for auth pages */
+.force-light {
+  --background: oklch(0.965 0.008 264);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.97 0.014 254.604);
+  --secondary: oklch(0.95 0.012 264);
+  --secondary-foreground: oklch(0.3 0.01 264);
+  --muted: oklch(0.94 0.008 264);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.94 0.025 264);
+  --accent-foreground: oklch(0.488 0.243 264.376);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.912 0.008 264);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.488 0.243 264.376);
+}
+
 * {
   scroll-behavior: smooth;
   scrollbar-width: none;

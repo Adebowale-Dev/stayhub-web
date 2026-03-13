@@ -3,7 +3,7 @@ import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm';
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+    <div className="force-light min-h-screen flex items-center justify-center relative overflow-hidden">
 
       {/* Blurred background photo */}
       <img
@@ -15,7 +15,7 @@ export default function ForgotPasswordPage() {
       />
 
       {/* Light wash overlay */}
-      <div className="absolute inset-0 bg-white/65 dark:bg-slate-900/70" />
+      <div className="absolute inset-0 dark:bg-slate-900/65" />
 
       {/* Centered form card */}
       <div className="relative z-10 w-full max-w-sm mx-auto px-4 py-12">

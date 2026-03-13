@@ -19,19 +19,12 @@ export default function LoginPage() {
   if (isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="force-light min-h-screen relative overflow-hidden">
 
       {/* SVG clip-path definition — smooth S-curve using cubic bezier */}
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
           <clipPath id="wave-left" clipPathUnits="objectBoundingBox">
-            {/*
-              Smooth S-wave on the right edge:
-              starts at (0.84, 0), curves right to 1.0 around mid-top,
-              crosses back through 0.84 at centre,
-              curves right again to 1.0 at mid-bottom,
-              returns to (0.84, 1)
-            */}
             <path d="M 0,0 L 0.84,0 C 1.08,0.12 0.60,0.38 0.84,0.5 C 1.08,0.62 0.60,0.88 0.84,1 L 0,1 Z" />
           </clipPath>
         </defs>
@@ -47,7 +40,7 @@ export default function LoginPage() {
           style={{ filter: 'blur(18px)' }}
           loading="eager"
         />
-        <div className="absolute inset-0 bg-white/72 dark:bg-slate-900/72" />
+        <div className="absolute inset-0 dark:bg-slate-900/72" />
       </div>
 
       {/* ── Left photo panel: sits on top with S-curve wave clip ── */}
@@ -87,7 +80,7 @@ export default function LoginPage() {
             Smart Hostel<br />Management Hub
           </h1>
           <p className="text-sm text-white/75 max-w-xs leading-relaxed">
-            Manage rooms, students, payments, and check-ins — all from one unified platform.
+            Manage rooms, students, payments, and check-ins all from one unified platform.
           </p>
         </div>
       </div>
@@ -107,29 +100,35 @@ export default function LoginPage() {
         <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 lg:pl-[58%] lg:pr-12">
           <div className="w-full max-w-sm">
 
-            {/* Desktop branding */}
-            <div className="mb-8 hidden lg:block">
-              <div className="flex items-center gap-2.5 mb-6">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-                  <Building2 className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <span className="text-lg font-bold text-foreground">StayHub</span>
+            {/* Desktop logo above card */}
+            <div className="mb-6 hidden lg:flex items-center justify-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+                <Building2 className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Sign in to your account to continue
-              </p>
+              <span className="text-lg font-bold text-foreground">StayHub</span>
             </div>
 
-            {/* Mobile heading */}
-            <div className="mb-6 lg:hidden">
-              <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Sign in to continue</p>
+            {/* Card */}
+            <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-7 shadow-lg">
+
+              {/* Desktop heading */}
+              <div className="mb-6 hidden lg:block">
+                <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Sign in to your account to continue
+                </p>
+              </div>
+
+              {/* Mobile heading */}
+              <div className="mb-6 lg:hidden">
+                <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Sign in to continue</p>
+              </div>
+
+              <LoginForm />
             </div>
 
-            <LoginForm />
-
-            <p className="mt-8 text-center text-xs text-muted-foreground/60">
+            <p className="mt-6 text-center text-xs text-muted-foreground/60">
               © {new Date().getFullYear()} StayHub · All rights reserved
             </p>
           </div>

@@ -132,11 +132,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <AnimatedThemeToggler />
 
             {/* Notification bell */}
-            <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 rounded-xl hover:bg-accent">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
-              <span className="sr-only">Notifications</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 rounded-xl hover:bg-accent">
+                  <Bell className="h-5 w-5 text-muted-foreground" />
+                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
+                  <span className="sr-only">Notifications</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel className="flex items-center justify-between">
+                  <span>Notifications</span>
+                  <span className="text-xs font-normal text-muted-foreground">Today</span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Bell className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm font-medium text-muted-foreground">No new notifications</p>
+                  <p className="text-xs text-muted-foreground/60 mt-0.5">You&apos;re all caught up!</p>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
           {/* User menu */}
           <DropdownMenu>

@@ -51,7 +51,7 @@ export default function ForgotPasswordForm() {
     return (
       <div className="text-center space-y-4">
         <div className="flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
             <CheckCircle2 className="h-8 w-8 text-emerald-600" />
           </div>
         </div>
