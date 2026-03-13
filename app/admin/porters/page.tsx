@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { adminAPI } from '@/services/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -168,7 +166,10 @@ export default function PortersPage() {
       <ProtectedRoute allowedRoles={['admin']}>
         <DashboardLayout>
           <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Loading porters...</p>
+            <div className="text-center space-y-3">
+              <div className="h-10 w-10 mx-auto rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading porters…</p>
+            </div>
           </div>
         </DashboardLayout>
       </ProtectedRoute>
@@ -182,10 +183,8 @@ export default function PortersPage() {
           {/* Header */}
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                Porter Management
-              </h2>
-              <p className="text-muted-foreground mt-1">
+              <h1 className="text-2xl font-bold text-foreground">Porter Management</h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 Create porter accounts and manage hostel assignments
               </p>
             </div>
@@ -197,156 +196,147 @@ export default function PortersPage() {
 
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Porters</CardDescription>
-                <CardTitle className="text-2xl">{stats.total}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <UserCheck className="h-4 w-4" />
-                  <span>All porters</span>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Porters</p>
+                  <p className="mt-2 text-3xl font-bold text-violet-600">{stats.total}</p>
+                  <p className="text-xs text-muted-foreground mt-1">All porters</p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>With Assigned Hostels</CardDescription>
-                <CardTitle className="text-2xl">{stats.withHostels}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
-                  <span>Assigned to hostels</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Without Hostels</CardDescription>
-                <CardTitle className="text-2xl">{stats.withoutHostels}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Search className="h-4 w-4" />
-                  <span>Awaiting assignment</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filters */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name or email..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-900/30">
+                  <UserCheck className="h-6 w-6 text-violet-600" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assigned to Hostels</p>
+                  <p className="mt-2 text-3xl font-bold text-emerald-600">{stats.withHostels}</p>
+                  <p className="text-xs text-muted-foreground mt-1">With hostel</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <Building2 className="h-6 w-6 text-emerald-600" />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Without Hostel</p>
+                  <p className="mt-2 text-3xl font-bold text-amber-600">{stats.withoutHostels}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Awaiting assignment</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30">
+                  <Search className="h-6 w-6 text-amber-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 rounded-xl"
+              />
+            </div>
+          </div>
 
           {/* Porters Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Porters</CardTitle>
-              <CardDescription>
-                {filteredPorters.length} porter{filteredPorters.length !== 1 ? 's' : ''} found
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {filteredPorters.length === 0 ? (
-                <div className="text-center py-12">
-                  <UserCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No porters found</p>
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h2 className="font-semibold text-foreground">Porter List</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {filteredPorters.length} porter{filteredPorters.length !== 1 ? 's' : ''} found
+                </p>
+              </div>
+            </div>
+            {filteredPorters.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="h-14 w-14 mx-auto rounded-2xl bg-muted flex items-center justify-center mb-4">
+                  <UserCheck className="h-7 w-7 text-muted-foreground" />
                 </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>#</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Assigned Hostel</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredPorters.map((porter, index) => (
-                        <TableRow key={porter._id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{porter.name}</p>
+                <p className="font-semibold text-muted-foreground">No porters found</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Create your first porter account</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="w-10 text-xs">#</TableHead>
+                    <TableHead className="text-xs">Name</TableHead>
+                    <TableHead className="text-xs">Contact</TableHead>
+                    <TableHead className="text-xs">Assigned Hostel</TableHead>
+                    <TableHead className="text-xs">Created</TableHead>
+                    <TableHead className="text-right text-xs">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPorters.map((porter, index) => (
+                    <TableRow key={porter._id} className="hover:bg-muted/20">
+                      <TableCell className="text-muted-foreground text-sm">{index + 1}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-xs font-bold text-violet-600">
+                            {porter.name.charAt(0).toUpperCase()}
+                          </div>
+                          <p className="font-medium text-sm">{porter.name}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Mail className="h-3 w-3" />
+                            {porter.email}
+                          </div>
+                          {porter.phone && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Phone className="h-3 w-3" />
+                              {porter.phone}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 text-sm">
-                                <Mail className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-muted-foreground">{porter.email}</span>
-                              </div>
-                              {porter.phone && (
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Phone className="h-3 w-3 text-muted-foreground" />
-                                  <span className="text-muted-foreground">{porter.phone}</span>
-                                </div>
-                              )}
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {(porter.assignedHostel || porter.hostel) ? (
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                              <Building2 className="h-3.5 w-3.5 text-emerald-600" />
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            {(porter.assignedHostel || porter.hostel) ? (
-                              <div className="flex items-center gap-2">
-                                <Building2 className="h-4 w-4 text-muted-foreground" />
-                                <span>{porter.assignedHostel?.name || porter.hostel?.name}</span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">Not assigned</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(porter.createdAt).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex gap-2 justify-end">
-                              {(porter.assignedHostel || porter.hostel) ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleReassignClick(porter)}
-                                >
-                                  <Building2 className="h-4 w-4 mr-2" />
-                                  Reassign
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleReassignClick(porter)}
-                                >
-                                  <Building2 className="h-4 w-4 mr-2" />
-                                  Assign Hostel
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                            <span className="text-sm font-medium">{porter.assignedHostel?.name || porter.hostel?.name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic bg-muted px-2 py-1 rounded-lg">Not assigned</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(porter.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {(porter.assignedHostel || porter.hostel) ? (
+                          <Button size="sm" variant="outline" onClick={() => handleReassignClick(porter)} className="gap-1.5 rounded-xl text-xs">
+                            <Building2 className="h-3.5 w-3.5" />
+                            Reassign
+                          </Button>
+                        ) : (
+                          <Button size="sm" onClick={() => handleReassignClick(porter)} className="gap-1.5 rounded-xl text-xs">
+                            <Building2 className="h-3.5 w-3.5" />
+                            Assign Hostel
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         </div>
 
         {/* Create Porter Dialog */}

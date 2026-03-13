@@ -37,7 +37,7 @@ interface Student {
     };
     bunkNumber?: number;
   };
-  checkInStatus: 'checked-in' | 'pending' | 'not-checked-in';
+  checkInStatus: 'checked-in' | 'checked_in' | 'pending' | 'not-checked-in' | 'active' | 'confirmed' | 'checkedIn' | string;
   checkInDate?: string;
   department?: string;
   level?: string;

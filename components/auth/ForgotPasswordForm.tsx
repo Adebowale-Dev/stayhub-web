@@ -1,19 +1,19 @@
- 'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { ArrowLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react';
 import { authAPI } from '../../services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('Please enter a valid email address'),
 });
 
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
@@ -36,7 +36,6 @@ export default function ForgotPasswordForm() {
     try {
       setIsLoading(true);
       setError(null);
-
       await authAPI.forgotPassword(data.email);
       setSuccess(true);
     } catch (err: unknown) {
@@ -50,48 +49,74 @@ export default function ForgotPasswordForm() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Check Your Email</CardTitle>
-          <CardDescription>We&apos;ve sent a password reset link to your email address.</CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button onClick={() => router.push('/login')} className="w-full">
-            Back to Login
-          </Button>
-        </CardFooter>
-      </Card>
+      <div className="text-center space-y-4">
+        <div className="flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+            <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+          </div>
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-foreground">Check your email</h3>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            We&apos;ve sent a password reset link to your email address.
+          </p>
+        </div>
+        <Button onClick={() => router.push('/login')} className="w-full h-11 rounded-xl">
+          Back to Login
+        </Button>
+      </div>
     );
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Forgot Password</CardTitle>
-        <CardDescription>Enter your email address and we&apos;ll send you a reset link</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {error && (
-            <Alert>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+    <div className="space-y-5">
+      {error && (
+        <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-destructive/5">
+          <AlertDescription className="text-sm">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <div className="space-y-1.5">
+          <Label htmlFor="email" className="text-sm font-medium text-foreground">
+            Email Address
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="your.email@example.com"
+            className="h-11 rounded-xl text-sm"
+            {...register('email')}
+            disabled={isLoading}
+          />
+          {errors.email && (
+            <p className="text-xs text-destructive">{errors.email.message}</p>
           )}
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input id="email" type="email" placeholder="your.email@example.com" {...register('email')} disabled={isLoading} />
-            {errors.email && <p className="text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>}
-          </div>
+        <Button type="submit" className="w-full h-11 rounded-xl text-sm font-semibold" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Mail className="mr-2 h-4 w-4" />
+              Send Reset Link
+            </>
+          )}
+        </Button>
+      </form>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Sending...' : 'Send Reset Link'}
-          </Button>
-        </form>
-      </CardContent>
-      <CardFooter className="flex justify-center">
-        <Button variant="link" onClick={() => router.push('/login')}>Back to Login</Button>
-      </CardFooter>
-    </Card>
+      <button
+        type="button"
+        onClick={() => router.push('/login')}
+        className="flex w-full items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Back to login
+      </button>
+    </div>
   );
 }

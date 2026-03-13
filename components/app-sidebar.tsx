@@ -16,7 +16,6 @@ import {
   User,
   UserCheck,
   FileText,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useAuthStore from '@/store/useAuthStore';
@@ -86,23 +85,29 @@ export function AppSidebar({ className }: AppSidebarProps) {
   return (
     <div
       className={cn(
-        'flex h-full w-64 flex-col border-r bg-background',
+        'flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground',
         className
       )}
     >
       {/* Header */}
-      <div className="flex h-16 items-center border-b px-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Building2 className="h-6 w-6 text-primary" />
-          <span className="text-xl font-bold text-primary">StayHub</span>
+      <div className="flex h-16 items-center border-b border-sidebar-border px-5">
+        <Link href="/" className="flex items-center gap-3 font-semibold">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/30">
+            <Building2 className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-lg font-bold text-foreground">StayHub</span>
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-1">
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <div className="space-y-0.5">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href ||
+              (item.href !== '/admin/dashboard' &&
+               item.href !== '/student/dashboard' &&
+               item.href !== '/porter/dashboard' &&
+               pathname.startsWith(item.href));
             const Icon = item.icon;
 
             return (
@@ -110,17 +115,15 @@ export function AppSidebar({ className }: AppSidebarProps) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground',
+                  'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150',
                   isActive
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground'
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className={cn('h-4 w-4 flex-shrink-0', isActive ? 'text-white' : 'text-sidebar-foreground/50 group-hover:text-sidebar-accent-foreground')} />
                 <span>{item.title}</span>
-                {isActive && (
-                  <ChevronRight className="ml-auto h-4 w-4" />
-                )}
+                {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white/80" />}
               </Link>
             );
           })}
@@ -128,15 +131,15 @@ export function AppSidebar({ className }: AppSidebarProps) {
       </nav>
 
       {/* User Profile Footer */}
-      <div className="border-t p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-primary/10 text-primary">
+      <div className="border-t border-sidebar-border p-3">
+        <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+          <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+            <AvatarFallback className="bg-primary/10 text-sm font-bold text-primary">
               {getInitials()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium text-foreground">
+            <p className="truncate text-sm font-semibold text-sidebar-foreground">
               {user?.firstName} {user?.lastName}
             </p>
             <p className="truncate text-xs text-muted-foreground">
@@ -144,7 +147,6 @@ export function AppSidebar({ className }: AppSidebarProps) {
             </p>
           </div>
         </div>
-      
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Bell, Search } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { authAPI } from '../../services/api';
 import { Button } from '@/components/ui/button';
@@ -99,12 +99,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top header */}
-        <header className="flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">
-          {/* Mobile menu button */}
+        <header className="flex h-16 items-center border-b bg-card px-4 lg:px-6 shadow-sm">
+          {/* Left: Mobile menu button */}
           <Button
             variant="ghost"
             size="sm"
-            className="lg:hidden"
+            className="lg:hidden h-9 w-9 p-0 shrink-0 mr-2"
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
             {sidebarOpen ? (
@@ -115,30 +115,52 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <span className="sr-only">Toggle menu</span>
           </Button>
 
-          {/* Page title / breadcrumb */}
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold text-foreground capitalize">
-              {user?.role} Dashboard
-            </h1>
+          {/* Center: Search bar */}
+          <div className="flex-1 flex justify-center">
+            <div className="relative hidden sm:flex w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+              />
+            </div>
           </div>
 
-            <AnimatedThemeToggler/>
+          {/* Right: Theme toggle, bell, user */}
+          <div className="flex items-center gap-2 shrink-0">
+            <AnimatedThemeToggler />
+
+            {/* Notification bell */}
+            <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 rounded-xl hover:bg-accent">
+              <Bell className="h-5 w-5 text-muted-foreground" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
+              <span className="sr-only">Notifications</span>
+            </Button>
 
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="relative h-10 w-10 rounded-full">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary/10 text-primary">
+              <button className="flex items-center gap-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
+                <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+                  <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
-              </Button>
+                <div className="hidden lg:block text-left">
+                  <p className="text-sm font-semibold leading-none text-foreground">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground mt-0.5 capitalize">
+                    {user?.role}
+                  </p>
+                </div>
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
+                  <p className="text-sm font-semibold leading-none">
                     {user?.firstName} {user?.lastName}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
@@ -147,21 +169,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push(getProfilePath())}>
+              <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push(getProfilePath())}>
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(getSettingsPath())}>
+              <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push(getSettingsPath())}>
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={handleLogout}
-                className="text-destructive focus:text-destructive"
+                className="cursor-pointer text-destructive focus:text-destructive"
               >
-                Logout
+                Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </header>
 
         {/* Page content */}

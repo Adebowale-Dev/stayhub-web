@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { adminAPI } from '@/services/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,12 +14,7 @@ import { CreditCard, Search, CheckCircle, Clock, X, TrendingUp } from 'lucide-re
 
 interface Payment {
   _id: string;
-  student: {
-    _id: string;
-    name: string;
-    matricNumber: string;
-    email: string;
-  };
+  student: { _id: string; name: string; matricNumber: string; email: string };
   amount: number;
   status: 'pending' | 'completed' | 'failed';
   reference?: string;
@@ -34,6 +28,177 @@ interface PaymentStats {
   totalPending: number;
   totalFailed: number;
 }
+
+// ── Chart helpers ──────────────────────────────────────────────────────────────
+
+function getMonthlyData(payments: Payment[]) {
+  const now = new Date();
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    return {
+      label: d.toLocaleDateString('en-US', { month: 'short' }),
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      completed: 0,
+      pending: 0,
+      failed: 0,
+    };
+  });
+  payments.forEach((p) => {
+    const date = new Date(p.paymentDate || p.createdAt);
+    const bucket = months.find(
+      (m) => m.year === date.getFullYear() && m.month === date.getMonth()
+    );
+    if (bucket) bucket[p.status]++;
+  });
+  return months;
+}
+
+function PaymentDonut({
+  completed,
+  pending,
+  failed,
+}: {
+  completed: number;
+  pending: number;
+  failed: number;
+}) {
+  const total = completed + pending + failed;
+  const r = 52, cx = 65, cy = 65, sw = 20;
+  const circ = 2 * Math.PI * r;
+  const cl = total > 0 ? (completed / total) * circ : 0;
+  const pl = total > 0 ? (pending / total) * circ : 0;
+  const fl = total > 0 ? (failed / total) * circ : 0;
+
+  const segments = [
+    { len: cl, offset: 0, color: '#10b981' },
+    { len: pl, offset: cl, color: '#f59e0b' },
+    { len: fl, offset: cl + pl, color: '#f43f5e' },
+  ].filter((s) => s.len > 1);
+
+  return (
+    <svg viewBox="0 0 130 130" className="w-[130px] h-[130px] shrink-0">
+      {/* Track */}
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none" strokeWidth={sw} stroke="#e5e7eb"
+        className="dark:stroke-zinc-700"
+      />
+      {total > 0 &&
+        segments.map((s, i) => (
+          <circle
+            key={i}
+            cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={s.color}
+            strokeWidth={sw}
+            strokeDasharray={`${s.len} ${circ}`}
+            strokeDashoffset={-s.offset}
+            style={{ transformOrigin: `${cx}px ${cy}px`, transform: 'rotate(-90deg)' }}
+          />
+        ))}
+      <text
+        x={cx} y={cy - 5}
+        textAnchor="middle" fontSize="20" fontWeight="700"
+        className="fill-foreground"
+      >
+        {total}
+      </text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fontSize="9" fill="#9ca3af">
+        payments
+      </text>
+    </svg>
+  );
+}
+
+type MonthlyItem = ReturnType<typeof getMonthlyData>[number];
+
+function MonthlyBarChart({ data }: { data: MonthlyItem[] }) {
+  const maxVal = Math.max(1, ...data.map((d) => d.completed + d.pending + d.failed));
+  const W = 400, H = 160;
+  const padL = 28, padB = 26, padT = 10, padR = 8;
+  const cW = W - padL - padR;
+  const cH = H - padT - padB;
+  const groupW = cW / 6;
+  const barW = 10, gap = 2;
+  const totalBarW = 3 * barW + 2 * gap;
+  const barOffset = (groupW - totalBarW) / 2;
+
+  const scaleY = (v: number) => cH - (v / maxVal) * cH;
+  const barH = (v: number) => Math.max(2, (v / maxVal) * cH);
+
+  const yTicks = [0, Math.ceil(maxVal / 2), maxVal];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
+      {/* Grid lines + Y labels */}
+      {yTicks.map((v, i) => {
+        const y = padT + scaleY(v);
+        return (
+          <g key={i}>
+            <line
+              x1={padL} y1={y} x2={W - padR} y2={y}
+              stroke="#e5e7eb" strokeWidth="0.6"
+              className="dark:stroke-zinc-700"
+            />
+            <text x={padL - 5} y={y + 3} textAnchor="end" fontSize="8" fill="#9ca3af">
+              {v}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Bars */}
+      {data.map((d, i) => {
+        const gx = padL + i * groupW + barOffset;
+        const mx = padL + i * groupW + groupW / 2;
+        return (
+          <g key={i}>
+            {/* Completed */}
+            <rect
+              x={gx}
+              y={padT + scaleY(d.completed)}
+              width={barW}
+              height={barH(d.completed)}
+              fill="#10b981"
+              rx="2"
+              opacity={d.completed === 0 ? 0.2 : 1}
+            />
+            {/* Pending */}
+            <rect
+              x={gx + barW + gap}
+              y={padT + scaleY(d.pending)}
+              width={barW}
+              height={barH(d.pending)}
+              fill="#f59e0b"
+              rx="2"
+              opacity={d.pending === 0 ? 0.2 : 1}
+            />
+            {/* Failed */}
+            <rect
+              x={gx + 2 * (barW + gap)}
+              y={padT + scaleY(d.failed)}
+              width={barW}
+              height={barH(d.failed)}
+              fill="#f43f5e"
+              rx="2"
+              opacity={d.failed === 0 ? 0.2 : 1}
+            />
+            {/* Month label */}
+            <text
+              x={mx} y={H - padB + 14}
+              textAnchor="middle" fontSize="9" fill="#9ca3af"
+            >
+              {d.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -53,74 +218,42 @@ export default function PaymentsPage() {
   const loadData = async (retryCount = 0) => {
     try {
       setLoading(true);
-      
-      // Try to load payments
       let paymentsData: Payment[] = [];
       try {
         const paymentsResponse = await adminAPI.getPayments();
         paymentsData = paymentsResponse.data.data || paymentsResponse.data || [];
         setPayments(paymentsData);
-      } catch (paymentError: any) {
+      } catch (paymentError: unknown) {
         console.error('Failed to load payments:', paymentError);
-        
-        // Handle rate limiting with retry for payments
-        if (paymentError.response?.status === 429 && retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-          console.log(`Rate limited on payments. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+        const err = paymentError as { response?: { status?: number } };
+        if (err.response?.status === 429 && retryCount < 3) {
+          await new Promise((r) => setTimeout(r, Math.pow(2, retryCount) * 1000));
           return loadData(retryCount + 1);
         }
-        // Continue even if payments fail
       }
-      
-      // Add delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Try to load stats separately
+
+      await new Promise((r) => setTimeout(r, 500));
+
       try {
         const statsResponse = await adminAPI.getPaymentStats();
-        const statsData = statsResponse.data.data || statsResponse.data || {};
-        setStats(statsData);
-      } catch (statsError: any) {
+        setStats(statsResponse.data.data || statsResponse.data || {});
+      } catch (statsError: unknown) {
         console.error('Failed to load payment stats:', statsError);
-        
-        // Handle rate limiting with retry for stats
-        if (statsError.response?.status === 429 && retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1000;
-          console.log(`Rate limited on stats. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+        const err = statsError as { response?: { status?: number } };
+        if (err.response?.status === 429 && retryCount < 3) {
+          await new Promise((r) => setTimeout(r, Math.pow(2, retryCount) * 1000));
           return loadData(retryCount + 1);
         }
-        
-        console.log('Using fallback stats calculation from payment data');
-        // Stats will remain null, fallback calculation will be used
       }
-      
-      // Add delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Try to get current payment amount from dedicated endpoint
+
+      await new Promise((r) => setTimeout(r, 500));
+
       try {
         const amountResponse = await adminAPI.getPaymentAmount();
         const amount = amountResponse.data.data?.amount || amountResponse.data?.amount;
-        if (amount) {
-          setCurrentAmount(amount);
-        }
-      } catch (amountError: any) {
-        console.log('Payment amount endpoint not available, using fallback');
-        
-        // Handle rate limiting with retry for amount
-        if (amountError.response?.status === 429 && retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1000;
-          console.log(`Rate limited on amount. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return loadData(retryCount + 1);
-        }
-        
-        // Fallback: Get current payment amount from first payment
-        if (paymentsData.length > 0) {
-          setCurrentAmount(paymentsData[0].amount || 0);
-        }
+        if (amount) setCurrentAmount(amount);
+      } catch {
+        if (paymentsData.length > 0) setCurrentAmount(paymentsData[0].amount || 0);
       }
     } catch (error) {
       console.error('Failed to load payments data:', error);
@@ -131,56 +264,27 @@ export default function PaymentsPage() {
 
   const handleUpdateAmount = async () => {
     const amount = parseFloat(newAmount);
-    
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-
+    if (isNaN(amount) || amount <= 0) { alert('Please enter a valid amount'); return; }
     setUpdatingAmount(true);
     try {
-      console.log('Updating payment amount to:', amount);
-      const response = await adminAPI.setPaymentAmount(amount);
-      console.log('Payment amount update response:', response);
-      
-      // Verify the amount was saved by fetching it back
+      await adminAPI.setPaymentAmount(amount);
       try {
         const verifyResponse = await adminAPI.getPaymentAmount();
         const savedAmount = verifyResponse.data.data?.amount || verifyResponse.data?.amount;
-        console.log('Verified saved amount:', savedAmount);
-        
-        if (savedAmount) {
-          setCurrentAmount(savedAmount);
-        } else {
-          setCurrentAmount(amount);
-        }
+        setCurrentAmount(savedAmount || amount);
       } catch {
-        // If verification fails, just use the amount we sent
         setCurrentAmount(amount);
       }
-      
       alert('Payment amount updated successfully!');
       setAmountDialogOpen(false);
       setNewAmount('');
-      
-      // Reload payment data to ensure everything is in sync
       await loadData();
     } catch (err: unknown) {
-      console.error('Failed to update amount:', err);
-      
       const error = err as { response?: { data?: { message?: string; error?: string; status?: number } }; message?: string };
-      console.error('Error response:', error?.response?.data);
-      
-      // Check if it's a 404 (endpoint not implemented)
       if (error?.response?.data?.status === 404) {
-        alert('⚠️ Payment amount configuration is not yet implemented in the backend.\n\nPlease ask the backend developer to implement:\nPOST /api/admin/payment/set-amount\nGET /api/admin/payment/amount');
+        alert('⚠️ Payment amount configuration is not yet implemented in the backend.');
       } else {
-        const errorMessage = error?.response?.data?.message || 
-                            error?.response?.data?.error || 
-                            error?.message || 
-                            'Failed to update payment amount. Please try again.';
-        
-        alert(`Error: ${errorMessage}`);
+        alert(`Error: ${error?.response?.data?.message || error?.message || 'Failed to update payment amount.'}`);
       }
     } finally {
       setUpdatingAmount(false);
@@ -188,31 +292,35 @@ export default function PaymentsPage() {
   };
 
   const filteredPayments = payments.filter((payment) => {
-    const matchesSearch = 
+    const matchesSearch =
       (payment.student?.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (payment.student?.matricNumber?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (payment.student?.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (payment.reference?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = 
-      statusFilter === 'all' || payment.status === statusFilter;
-
+    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const displayStats = {
-    totalRevenue: stats?.totalRevenue || payments.filter(p => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0),
-    totalPaid: stats?.totalPaid || payments.filter(p => p.status === 'completed').length,
-    totalPending: stats?.totalPending || payments.filter(p => p.status === 'pending').length,
-    totalFailed: stats?.totalFailed || payments.filter(p => p.status === 'failed').length,
+    totalRevenue: stats?.totalRevenue || payments.filter((p) => p.status === 'completed').reduce((s, p) => s + p.amount, 0),
+    totalPaid: stats?.totalPaid || payments.filter((p) => p.status === 'completed').length,
+    totalPending: stats?.totalPending || payments.filter((p) => p.status === 'pending').length,
+    totalFailed: stats?.totalFailed || payments.filter((p) => p.status === 'failed').length,
   };
+
+  const monthlyData = getMonthlyData(payments);
+  const totalPayments = displayStats.totalPaid + displayStats.totalPending + displayStats.totalFailed;
+  const successRate = totalPayments > 0 ? Math.round((displayStats.totalPaid / totalPayments) * 100) : 0;
 
   if (loading) {
     return (
       <ProtectedRoute allowedRoles={['admin']}>
         <DashboardLayout>
           <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Loading payments...</p>
+            <div className="text-center space-y-3">
+              <div className="h-10 w-10 mx-auto rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading payments…</p>
+            </div>
           </div>
         </DashboardLayout>
       </ProtectedRoute>
@@ -223,238 +331,321 @@ export default function PaymentsPage() {
     <ProtectedRoute allowedRoles={['admin']}>
       <DashboardLayout>
         <div className="space-y-6">
+
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                Payment Management
-              </h2>
-              <p className="text-muted-foreground mt-1">
+              <h1 className="text-2xl font-bold text-foreground">Payment Management</h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 Track student payments and manage payment settings
               </p>
             </div>
-            <Button onClick={() => setAmountDialogOpen(true)}>
+            <Button onClick={() => setAmountDialogOpen(true)} className="gap-2">
+              <CreditCard className="h-4 w-4" />
               Set Payment Amount
             </Button>
           </div>
 
-          {/* Stats Cards */}
+          {/* Stat Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Revenue</CardDescription>
-                <CardTitle className="text-2xl">
-                  ₦{displayStats.totalRevenue.toLocaleString()}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>From completed payments</span>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Revenue</p>
+                  <p className="mt-2 text-2xl font-bold text-emerald-600">₦{displayStats.totalRevenue.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">From completed payments</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <TrendingUp className="h-6 w-6 text-emerald-600" />
+                </div>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Completed Payments</CardDescription>
-                <CardTitle className="text-2xl">{displayStats.totalPaid}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle className="h-4 w-4" />
-                  <span>Successfully paid</span>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Completed</p>
+                  <p className="mt-2 text-2xl font-bold text-sky-600">{displayStats.totalPaid}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Successfully paid</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/30">
+                  <CheckCircle className="h-6 w-6 text-sky-600" />
+                </div>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Pending Payments</CardDescription>
-                <CardTitle className="text-2xl">{displayStats.totalPending}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>Awaiting payment</span>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pending</p>
+                  <p className="mt-2 text-2xl font-bold text-amber-600">{displayStats.totalPending}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Awaiting payment</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30">
+                  <Clock className="h-6 w-6 text-amber-600" />
+                </div>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Failed Payments</CardDescription>
-                <CardTitle className="text-2xl">{displayStats.totalFailed}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <X className="h-4 w-4" />
-                  <span>Payment failed</span>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Failed</p>
+                  <p className="mt-2 text-2xl font-bold text-rose-600">{displayStats.totalFailed}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Payment failed</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 dark:bg-rose-900/30">
+                  <X className="h-6 w-6 text-rose-500" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Current Payment Amount */}
-          {currentAmount > 0 && (
-            <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Current Payment Amount</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                      ₦{currentAmount.toLocaleString()}
-                    </p>
+          {/* ── Charts Row ── */}
+          <div className="grid gap-4 lg:grid-cols-2">
+
+            {/* Donut — Payment Status */}
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <h2 className="font-semibold text-foreground">Payment Status</h2>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-5">Overall distribution by status</p>
+
+              <div className="flex items-center gap-8">
+                <PaymentDonut
+                  completed={displayStats.totalPaid}
+                  pending={displayStats.totalPending}
+                  failed={displayStats.totalFailed}
+                />
+
+                <div className="flex-1 space-y-3">
+                  {/* Completed */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="text-muted-foreground">Completed</span>
+                      </div>
+                      <span className="font-bold text-foreground">{displayStats.totalPaid}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-emerald-500"
+                        style={{ width: totalPayments > 0 ? `${(displayStats.totalPaid / totalPayments) * 100}%` : '0%' }}
+                      />
+                    </div>
                   </div>
-                  <Button variant="outline" onClick={() => setAmountDialogOpen(true)}>
-                    Update Amount
-                  </Button>
+
+                  {/* Pending */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
+                        <span className="text-muted-foreground">Pending</span>
+                      </div>
+                      <span className="font-bold text-foreground">{displayStats.totalPending}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-amber-500"
+                        style={{ width: totalPayments > 0 ? `${(displayStats.totalPending / totalPayments) * 100}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Failed */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0" />
+                        <span className="text-muted-foreground">Failed</span>
+                      </div>
+                      <span className="font-bold text-foreground">{displayStats.totalFailed}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-rose-500"
+                        style={{ width: totalPayments > 0 ? `${(displayStats.totalFailed / totalPayments) * 100}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Success rate */}
+                  <div className="mt-4 pt-3 border-t border-border">
+                    <p className="text-xs text-muted-foreground">Success rate</p>
+                    <p className="text-2xl font-bold text-emerald-600">{successRate}%</p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+
+            {/* Bar — Monthly Trend */}
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <h2 className="font-semibold text-foreground">Monthly Trend</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Payment activity over last 6 months</p>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-sm bg-emerald-500" /> Done
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-sm bg-amber-500" /> Pending
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-sm bg-rose-500" /> Failed
+                  </span>
+                </div>
+              </div>
+
+              <div className="w-full aspect-[5/2]">
+                <MonthlyBarChart data={monthlyData} />
+              </div>
+            </div>
+          </div>
+
+          {/* Current Payment Amount Banner */}
+          {currentAmount > 0 && (
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 dark:bg-primary/10 p-5 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Current Accommodation Fee</p>
+                <p className="text-2xl font-bold text-primary mt-0.5">₦{currentAmount.toLocaleString()}</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setAmountDialogOpen(true)}
+                className="gap-2 border-primary/30 hover:bg-primary/10"
+              >
+                <CreditCard className="h-4 w-4" />
+                Update Amount
+              </Button>
+            </div>
           )}
 
           {/* Filters */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name, matric number, email, or reference..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={(value: string) => setStatusFilter(value as typeof statusFilter)}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, matric number, email, or reference..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 rounded-xl"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <Select
+                value={statusFilter}
+                onValueChange={(value: string) => setStatusFilter(value as typeof statusFilter)}
+              >
+                <SelectTrigger className="w-full sm:w-[180px] rounded-xl">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
           {/* Payments Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Records</CardTitle>
-              <CardDescription>
-                {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''} found
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {filteredPayments.length === 0 ? (
-                <div className="text-center py-12">
-                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No payments found</p>
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h2 className="font-semibold text-foreground">Payment Records</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''} found
+                </p>
+              </div>
+            </div>
+            {filteredPayments.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="h-14 w-14 mx-auto rounded-2xl bg-muted flex items-center justify-center mb-4">
+                  <CreditCard className="h-7 w-7 text-muted-foreground" />
                 </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>#</TableHead>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Matric Number</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Reference</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Payment Date</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredPayments.map((payment, index) => (
-                        <TableRow key={payment._id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{payment.student?.name || 'N/A'}</p>
-                              <p className="text-sm text-muted-foreground">{payment.student?.email || ''}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {payment.student?.matricNumber || 'N/A'}
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            ₦{payment.amount.toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            {payment.reference ? (
-                              <code className="text-xs bg-muted px-2 py-1 rounded">
-                                {payment.reference}
-                              </code>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {payment.status === 'pending' && (
-                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                <Clock className="h-3 w-3 mr-1" />
-                                Pending
-                              </Badge>
-                            )}
-                            {payment.status === 'completed' && (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Completed
-                              </Badge>
-                            )}
-                            {payment.status === 'failed' && (
-                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                <X className="h-3 w-3 mr-1" />
-                                Failed
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {payment.paymentDate 
-                              ? new Date(payment.paymentDate).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })
-                              : new Date(payment.createdAt).toLocaleDateString()
-                            }
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                <p className="font-semibold text-muted-foreground">No payments found</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="w-10 text-xs">#</TableHead>
+                    <TableHead className="text-xs">Student</TableHead>
+                    <TableHead className="text-xs">Matric Number</TableHead>
+                    <TableHead className="text-xs">Amount</TableHead>
+                    <TableHead className="text-xs">Reference</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPayments.map((payment, index) => (
+                    <TableRow key={payment._id} className="hover:bg-muted/20">
+                      <TableCell className="text-muted-foreground text-sm">{index + 1}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-sm">{payment.student?.name || 'N/A'}</p>
+                          <p className="text-xs text-muted-foreground">{payment.student?.email || ''}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{payment.student?.matricNumber || 'N/A'}</TableCell>
+                      <TableCell className="font-bold text-sm">₦{payment.amount.toLocaleString()}</TableCell>
+                      <TableCell>
+                        {payment.reference ? (
+                          <code className="text-xs bg-muted px-2 py-1 rounded-lg">{payment.reference}</code>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {payment.status === 'pending' && (
+                          <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 gap-1 text-xs">
+                            <Clock className="h-3 w-3" /> Pending
+                          </Badge>
+                        )}
+                        {payment.status === 'completed' && (
+                          <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 gap-1 text-xs">
+                            <CheckCircle className="h-3 w-3" /> Completed
+                          </Badge>
+                        )}
+                        {payment.status === 'failed' && (
+                          <Badge variant="outline" className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800 gap-1 text-xs">
+                            <X className="h-3 w-3" /> Failed
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {payment.paymentDate
+                          ? new Date(payment.paymentDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                          : new Date(payment.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         </div>
 
         {/* Set Payment Amount Dialog */}
         <Dialog open={amountDialogOpen} onOpenChange={setAmountDialogOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-2xl">
             <DialogHeader>
               <DialogTitle>Set Payment Amount</DialogTitle>
               <DialogDescription>
                 Update the hostel accommodation fee for students
               </DialogDescription>
             </DialogHeader>
-            
             <div className="space-y-4 py-4">
               {currentAmount > 0 && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">Current Amount</p>
-                  <p className="text-xl font-bold">₦{currentAmount.toLocaleString()}</p>
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
+                  <p className="text-xs font-medium text-muted-foreground">Current Amount</p>
+                  <p className="text-2xl font-bold text-primary mt-1">₦{currentAmount.toLocaleString()}</p>
                 </div>
               )}
-
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Payment Amount (₦)</label>
                 <Input
@@ -464,28 +655,28 @@ export default function PaymentsPage() {
                   onChange={(e) => setNewAmount(e.target.value)}
                   min="0"
                   step="1000"
+                  className="rounded-xl"
                 />
                 <p className="text-xs text-muted-foreground">
                   This amount will automatically update for all students who haven&apos;t paid yet
                 </p>
               </div>
             </div>
-
             <div className="flex gap-3">
               <Button
                 variant="outline"
                 onClick={() => setAmountDialogOpen(false)}
-                className="flex-1"
+                className="flex-1 rounded-xl"
                 disabled={updatingAmount}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleUpdateAmount}
-                className="flex-1"
+                className="flex-1 rounded-xl"
                 disabled={!newAmount || updatingAmount}
               >
-                {updatingAmount ? 'Updating...' : 'Update Amount'}
+                {updatingAmount ? 'Updating…' : 'Update Amount'}
               </Button>
             </div>
           </DialogContent>

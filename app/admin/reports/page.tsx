@@ -4,17 +4,15 @@ import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { adminAPI } from '@/services/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  FileText, 
-  Download, 
-  Users, 
-  Building2, 
-  CreditCard, 
+import {
+  Download,
+  Users,
+  Building2,
+  CreditCard,
   TrendingUp,
   DoorOpen,
   UserCheck,
@@ -80,6 +78,113 @@ interface PaymentStats {
   totalPending: number;
   totalFailed: number;
 }
+
+// ── Chart components ──────────────────────────────────────────────────────────
+
+function ReportDonut({
+  segments,
+  label,
+}: {
+  segments: Array<{ value: number; color: string; label: string }>;
+  label: string;
+}) {
+  const total = segments.reduce((s, d) => s + d.value, 0);
+  const r = 52, cx = 65, cy = 65, sw = 20;
+  const circ = 2 * Math.PI * r;
+  let accumulated = 0;
+
+  return (
+    <div className="flex items-center gap-6">
+      <svg viewBox="0 0 130 130" className="w-[130px] h-[130px] shrink-0">
+        <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={sw} stroke="#e5e7eb" className="dark:stroke-zinc-700" />
+        {total > 0 &&
+          segments.map((s, i) => {
+            const arcLen = (s.value / total) * circ;
+            const offset = accumulated;
+            accumulated += arcLen;
+            if (arcLen < 1) return null;
+            return (
+              <circle
+                key={i}
+                cx={cx} cy={cy} r={r}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={sw}
+                strokeDasharray={`${arcLen} ${circ}`}
+                strokeDashoffset={-offset}
+                style={{ transformOrigin: `${cx}px ${cy}px`, transform: 'rotate(-90deg)' }}
+              />
+            );
+          })}
+        <text x={cx} y={cy - 5} textAnchor="middle" fontSize="20" fontWeight="700" className="fill-foreground">{total}</text>
+        <text x={cx} y={cy + 14} textAnchor="middle" fontSize="9" fill="#9ca3af">{label}</text>
+      </svg>
+
+      <div className="flex-1 space-y-3">
+        {segments.map((s, i) => (
+          <div key={i} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+                <span className="text-muted-foreground">{s.label}</span>
+              </div>
+              <span className="font-bold text-foreground">
+                {s.value}
+                <span className="text-xs font-normal text-muted-foreground ml-1">
+                  {total > 0 ? `(${((s.value / total) * 100).toFixed(0)}%)` : ''}
+                </span>
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{ width: total > 0 ? `${(s.value / total) * 100}%` : '0%', background: s.color }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HostelBarChart({ hostels }: { hostels: Array<{ name: string; currentOccupants: number; capacity: number }> }) {
+  const data = hostels.slice(0, 8);
+  if (data.length === 0) return <p className="text-sm text-muted-foreground py-4 text-center">No hostel data</p>;
+
+  return (
+    <div className="space-y-3">
+      {data.map((h, i) => {
+        const pct = h.capacity > 0 ? Math.min(100, (h.currentOccupants / h.capacity) * 100) : 0;
+        const color = pct >= 80 ? '#f43f5e' : pct >= 50 ? '#f59e0b' : '#10b981';
+        return (
+          <div key={i} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground truncate max-w-[160px]">{h.name}</span>
+              <span className="font-bold text-foreground shrink-0 ml-2">
+                {h.currentOccupants}/{h.capacity}
+                <span className="text-xs font-normal text-muted-foreground ml-1">({pct.toFixed(0)}%)</span>
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${pct}%`, background: color }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex items-center gap-4 pt-1 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-emerald-500 inline-block" /> &lt;50%</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-amber-500 inline-block" /> 50–79%</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-rose-500 inline-block" /> ≥80%</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -279,7 +384,10 @@ export default function ReportsPage() {
       <ProtectedRoute allowedRoles={['admin']}>
         <DashboardLayout>
           <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Loading reports...</p>
+            <div className="text-center space-y-3">
+              <div className="h-10 w-10 mx-auto rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading reports…</p>
+            </div>
           </div>
         </DashboardLayout>
       </ProtectedRoute>
@@ -311,78 +419,67 @@ export default function ReportsPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight text-foreground">
-                Reports & Analytics
-              </h2>
-              <p className="text-muted-foreground mt-1">
+              <h1 className="text-2xl font-bold text-foreground">Reports & Analytics</h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 Comprehensive system reports and data exports
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {new Date().toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card border border-border rounded-xl px-4 py-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <span>{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
           </div>
 
           {/* Overview Stats */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Students</CardDescription>
-                <CardTitle className="text-2xl">{stats?.totalStudents || 0}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span>Registered students</span>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Students</p>
+                  <p className="mt-2 text-3xl font-bold text-violet-600">{stats?.totalStudents || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Registered students</p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Revenue</CardDescription>
-                <CardTitle className="text-2xl">₦{totalRevenue.toLocaleString()}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>From completed payments</span>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-900/30">
+                  <Users className="h-6 w-6 text-violet-600" />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Room Occupancy</CardDescription>
-                <CardTitle className="text-2xl">{occupancyRate}%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <DoorOpen className="h-4 w-4" />
-                  <span>{stats?.occupiedRooms || 0} of {stats?.totalRooms || 0} rooms</span>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Revenue</p>
+                  <p className="mt-2 text-2xl font-bold text-emerald-600">₦{totalRevenue.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">From completed payments</p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Hostels</CardDescription>
-                <CardTitle className="text-2xl">{stats?.totalHostels || 0}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
-                  <span>Active hostels</span>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <TrendingUp className="h-6 w-6 text-emerald-600" />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Room Occupancy</p>
+                  <p className="mt-2 text-3xl font-bold text-orange-500">{occupancyRate}%</p>
+                  <p className="text-xs text-muted-foreground mt-1">{stats?.occupiedRooms || 0} of {stats?.totalRooms || 0} rooms</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-100 dark:bg-orange-900/30">
+                  <DoorOpen className="h-6 w-6 text-orange-500" />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Hostels</p>
+                  <p className="mt-2 text-3xl font-bold text-sky-600">{stats?.totalHostels || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Active hostels</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/30">
+                  <Building2 className="h-6 w-6 text-sky-600" />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Tabbed Reports */}
@@ -417,116 +514,111 @@ export default function ReportsPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardDescription>Payment Completed</CardDescription>
-                    <CardTitle className="text-2xl text-green-600">
-                      {studentsByPaymentStatus.paid}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-xs text-muted-foreground">
-                      {stats?.totalStudents ? 
-                        `${((studentsByPaymentStatus.paid / stats.totalStudents) * 100).toFixed(1)}% of total`
-                        : '0%'
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardDescription>Payment Pending</CardDescription>
-                    <CardTitle className="text-2xl text-orange-600">
-                      {studentsByPaymentStatus.pending}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-xs text-muted-foreground">
-                      {stats?.totalStudents ? 
-                        `${((studentsByPaymentStatus.pending / stats.totalStudents) * 100).toFixed(1)}% of total`
-                        : '0%'
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardDescription>Room Allocated</CardDescription>
-                    <CardTitle className="text-2xl text-blue-600">
-                      {studentsByAllocation.allocated}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-xs text-muted-foreground">
-                      {stats?.totalStudents ? 
-                        `${((studentsByAllocation.allocated / stats.totalStudents) * 100).toFixed(1)}% allocated`
-                        : '0%'
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="rounded-2xl bg-card border border-border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment Completed</p>
+                  <p className="mt-2 text-2xl font-bold text-emerald-600">{studentsByPaymentStatus.paid}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats?.totalStudents ? `${((studentsByPaymentStatus.paid / stats.totalStudents) * 100).toFixed(1)}% of total` : '0%'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-card border border-border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment Pending</p>
+                  <p className="mt-2 text-2xl font-bold text-amber-600">{studentsByPaymentStatus.pending}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats?.totalStudents ? `${((studentsByPaymentStatus.pending / stats.totalStudents) * 100).toFixed(1)}% of total` : '0%'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-card border border-border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Room Allocated</p>
+                  <p className="mt-2 text-2xl font-bold text-sky-600">{studentsByAllocation.allocated}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats?.totalStudents ? `${((studentsByAllocation.allocated / stats.totalStudents) * 100).toFixed(1)}% allocated` : '0%'}
+                  </p>
+                </div>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Student Registrations</CardTitle>
-                  <CardDescription>Latest 10 registered students</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Matric Number</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Payment</TableHead>
-                          <TableHead>Room</TableHead>
-                          <TableHead>Registered</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {students.slice(0, 10).map((student) => (
-                          <TableRow key={student._id}>
-                            <TableCell className="font-medium">{student.name}</TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {student.matricNumber}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {student.department?.name || 'N/A'}
-                            </TableCell>
-                            <TableCell>
-                              {student.paymentStatus === 'completed' ? (
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  Paid
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                  Pending
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {student.roomAllocation ? (
-                                <span className="text-green-600">
-                                  {student.roomAllocation.hostel.name} - Room {student.roomAllocation.room.roomNumber}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">Not allocated</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {new Date(student.createdAt).toLocaleDateString()}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+              {/* Mini stacked payment bar */}
+              {(stats?.totalStudents ?? 0) > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-foreground">Payment Overview</p>
+                    <p className="text-xs text-muted-foreground">{stats?.totalStudents} students total</p>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="flex h-4 w-full rounded-full overflow-hidden gap-px">
+                    {studentsByPaymentStatus.paid > 0 && (
+                      <div
+                        className="bg-emerald-500 h-full transition-all"
+                        style={{ width: `${(studentsByPaymentStatus.paid / (stats?.totalStudents || 1)) * 100}%` }}
+                        title={`Completed: ${studentsByPaymentStatus.paid}`}
+                      />
+                    )}
+                    {studentsByPaymentStatus.pending > 0 && (
+                      <div
+                        className="bg-amber-500 h-full transition-all"
+                        style={{ width: `${(studentsByPaymentStatus.pending / (stats?.totalStudents || 1)) * 100}%` }}
+                        title={`Pending: ${studentsByPaymentStatus.pending}`}
+                      />
+                    )}
+                    {studentsByPaymentStatus.failed > 0 && (
+                      <div
+                        className="bg-rose-500 h-full transition-all"
+                        style={{ width: `${(studentsByPaymentStatus.failed / (stats?.totalStudents || 1)) * 100}%` }}
+                        title={`Failed: ${studentsByPaymentStatus.failed}`}
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 mt-2.5 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Completed ({studentsByPaymentStatus.paid})</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> Pending ({studentsByPaymentStatus.pending})</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> Failed ({studentsByPaymentStatus.failed})</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h4 className="font-semibold text-foreground">Recent Student Registrations</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">Latest 10 registered students</p>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead>Name</TableHead>
+                      <TableHead>Matric Number</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead>Room</TableHead>
+                      <TableHead>Registered</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {students.slice(0, 10).map((student) => (
+                      <TableRow key={student._id}>
+                        <TableCell className="font-medium">{student.name}</TableCell>
+                        <TableCell className="font-mono text-sm">{student.matricNumber}</TableCell>
+                        <TableCell className="text-sm">{student.department?.name || 'N/A'}</TableCell>
+                        <TableCell>
+                          {student.paymentStatus === 'completed' ? (
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 text-xs">Paid</Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 text-xs">Pending</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {student.roomAllocation ? (
+                            <span className="text-emerald-600">{student.roomAllocation.hostel.name} - Room {student.roomAllocation.room.roomNumber}</span>
+                          ) : (
+                            <span className="text-muted-foreground">Not allocated</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(student.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </TabsContent>
 
             {/* Hostels Report */}
@@ -539,78 +631,68 @@ export default function ReportsPage() {
                 </Button>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Hostel Statistics</CardTitle>
-                  <CardDescription>Detailed occupancy and capacity information</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Hostel Name</TableHead>
-                          <TableHead>Gender</TableHead>
-                          <TableHead>Total Rooms</TableHead>
-                          <TableHead>Occupied</TableHead>
-                          <TableHead>Available</TableHead>
-                          <TableHead>Capacity</TableHead>
-                          <TableHead>Occupants</TableHead>
-                          <TableHead>Occupancy Rate</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {hostels.map((hostel) => {
-                          const occupancyRate = hostel.capacity > 0 
-                            ? ((hostel.currentOccupants / hostel.capacity) * 100).toFixed(1)
-                            : '0';
-                          const isHighOccupancy = parseFloat(occupancyRate) >= 80;
-                          const isMediumOccupancy = parseFloat(occupancyRate) >= 50 && parseFloat(occupancyRate) < 80;
+              <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h4 className="font-semibold text-foreground">Hostel Statistics</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">Detailed occupancy and capacity information</p>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead>Hostel Name</TableHead>
+                      <TableHead>Gender</TableHead>
+                      <TableHead>Total Rooms</TableHead>
+                      <TableHead>Occupied</TableHead>
+                      <TableHead>Available</TableHead>
+                      <TableHead>Capacity</TableHead>
+                      <TableHead>Occupants</TableHead>
+                      <TableHead>Occupancy Rate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {hostels.map((hostel) => {
+                      const occupancyRate = hostel.capacity > 0
+                        ? ((hostel.currentOccupants / hostel.capacity) * 100).toFixed(1)
+                        : '0';
+                      const isHighOccupancy = parseFloat(occupancyRate) >= 80;
+                      const isMediumOccupancy = parseFloat(occupancyRate) >= 50 && parseFloat(occupancyRate) < 80;
 
-                          return (
-                            <TableRow key={hostel._id}>
-                              <TableCell className="font-medium">{hostel.name}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">
-                                  {hostel.gender === 'male' ? '♂ Male' : '♀ Female'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>{hostel.totalRooms}</TableCell>
-                              <TableCell className="text-orange-600 font-medium">
-                                {hostel.occupiedRooms}
-                              </TableCell>
-                              <TableCell className="text-green-600 font-medium">
-                                {hostel.availableRooms}
-                              </TableCell>
-                              <TableCell>{hostel.capacity}</TableCell>
-                              <TableCell>{hostel.currentOccupants}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full ${
-                                        isHighOccupancy 
-                                          ? 'bg-red-500' 
-                                          : isMediumOccupancy 
-                                            ? 'bg-orange-500' 
-                                            : 'bg-green-500'
-                                      }`}
-                                      style={{ width: `${occupancyRate}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-sm font-medium w-12 text-right">
-                                    {occupancyRate}%
-                                  </span>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+                      return (
+                        <TableRow key={hostel._id}>
+                          <TableCell className="font-medium">{hostel.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {hostel.gender === 'male' ? '♂ Male' : '♀ Female'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{hostel.totalRooms}</TableCell>
+                          <TableCell className="text-orange-600 font-medium">{hostel.occupiedRooms}</TableCell>
+                          <TableCell className="text-emerald-600 font-medium">{hostel.availableRooms}</TableCell>
+                          <TableCell>{hostel.capacity}</TableCell>
+                          <TableCell>{hostel.currentOccupants}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full ${
+                                    isHighOccupancy
+                                      ? 'bg-red-500'
+                                      : isMediumOccupancy
+                                        ? 'bg-orange-500'
+                                        : 'bg-emerald-500'
+                                  }`}
+                                  style={{ width: `${occupancyRate}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-medium w-12 text-right">{occupancyRate}%</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </TabsContent>
 
             {/* Payments Report */}
@@ -624,287 +706,192 @@ export default function ReportsPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardDescription>Total Revenue</CardDescription>
-                    <CardTitle className="text-xl">₦{totalRevenue.toLocaleString()}</CardTitle>
-                  </CardHeader>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardDescription>Completed</CardDescription>
-                    <CardTitle className="text-xl text-green-600">
-                      {paymentStats?.totalPaid || payments.filter(p => p.status === 'completed').length}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardDescription>Pending</CardDescription>
-                    <CardTitle className="text-xl text-orange-600">
-                      {paymentStats?.totalPending || payments.filter(p => p.status === 'pending').length}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardDescription>Failed</CardDescription>
-                    <CardTitle className="text-xl text-red-600">
-                      {paymentStats?.totalFailed || payments.filter(p => p.status === 'failed').length}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
+                <div className="rounded-2xl bg-card border border-border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Revenue</p>
+                  <p className="mt-2 text-xl font-bold text-emerald-600">₦{totalRevenue.toLocaleString()}</p>
+                </div>
+                <div className="rounded-2xl bg-card border border-border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Completed</p>
+                  <p className="mt-2 text-xl font-bold text-emerald-600">
+                    {paymentStats?.totalPaid || payments.filter(p => p.status === 'completed').length}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-card border border-border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pending</p>
+                  <p className="mt-2 text-xl font-bold text-amber-600">
+                    {paymentStats?.totalPending || payments.filter(p => p.status === 'pending').length}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-card border border-border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Failed</p>
+                  <p className="mt-2 text-xl font-bold text-rose-600">
+                    {paymentStats?.totalFailed || payments.filter(p => p.status === 'failed').length}
+                  </p>
+                </div>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Transactions</CardTitle>
-                  <CardDescription>Latest 15 payment records</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Student</TableHead>
-                          <TableHead>Matric Number</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Reference</TableHead>
-                          <TableHead>Date</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {payments.slice(0, 15).map((payment) => (
-                          <TableRow key={payment._id}>
-                            <TableCell className="font-medium">
-                              {payment.student?.name || 'N/A'}
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {payment.student?.matricNumber || 'N/A'}
-                            </TableCell>
-                            <TableCell className="font-semibold">
-                              ₦{payment.amount.toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              {payment.status === 'completed' && (
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  Completed
-                                </Badge>
-                              )}
-                              {payment.status === 'pending' && (
-                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                  Pending
-                                </Badge>
-                              )}
-                              {payment.status === 'failed' && (
-                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                  Failed
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {payment.reference ? (
-                                <code className="text-xs bg-muted px-2 py-1 rounded">
-                                  {payment.reference}
-                                </code>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {payment.paymentDate 
-                                ? new Date(payment.paymentDate).toLocaleDateString()
-                                : new Date(payment.createdAt).toLocaleDateString()
-                              }
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h4 className="font-semibold text-foreground">Recent Transactions</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">Latest 15 payment records</p>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead>Student</TableHead>
+                      <TableHead>Matric Number</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Reference</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.slice(0, 15).map((payment) => (
+                      <TableRow key={payment._id}>
+                        <TableCell className="font-medium">{payment.student?.name || 'N/A'}</TableCell>
+                        <TableCell className="font-mono text-sm">{payment.student?.matricNumber || 'N/A'}</TableCell>
+                        <TableCell className="font-semibold">₦{payment.amount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          {payment.status === 'completed' && (
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 text-xs">Completed</Badge>
+                          )}
+                          {payment.status === 'pending' && (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 text-xs">Pending</Badge>
+                          )}
+                          {payment.status === 'failed' && (
+                            <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 gap-1 text-xs">Failed</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {payment.reference ? (
+                            <code className="text-xs bg-muted px-2 py-1 rounded">{payment.reference}</code>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {payment.paymentDate
+                            ? new Date(payment.paymentDate).toLocaleDateString()
+                            : new Date(payment.createdAt).toLocaleDateString()
+                          }
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </TabsContent>
 
             {/* Analytics Report */}
             <TabsContent value="analytics" className="space-y-4">
-              <h3 className="text-lg font-semibold">System Analytics</h3>
+              <h3 className="text-lg font-semibold text-foreground">System Analytics</h3>
 
+              {/* Top row: two donuts */}
               <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Student Statistics</CardTitle>
-                    <CardDescription>Breakdown by payment and allocation status</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Payment Completed</span>
-                        <span className="font-bold text-green-600">
-                          {studentsByPaymentStatus.paid} ({stats?.totalStudents ? 
-                            ((studentsByPaymentStatus.paid / stats.totalStudents) * 100).toFixed(1) : 0}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-green-500"
-                          style={{ 
-                            width: stats?.totalStudents 
-                              ? `${(studentsByPaymentStatus.paid / stats.totalStudents) * 100}%` 
-                              : '0%' 
-                          }}
-                        />
-                      </div>
-                    </div>
+                {/* Student payment donut */}
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <h4 className="font-semibold text-foreground">Student Payment Status</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5 mb-5">Breakdown of payment outcomes</p>
+                  <ReportDonut
+                    label="students"
+                    segments={[
+                      { value: studentsByPaymentStatus.paid, color: '#10b981', label: 'Completed' },
+                      { value: studentsByPaymentStatus.pending, color: '#f59e0b', label: 'Pending' },
+                      { value: studentsByPaymentStatus.failed, color: '#f43f5e', label: 'Failed' },
+                    ]}
+                  />
+                </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Payment Pending</span>
-                        <span className="font-bold text-orange-600">
-                          {studentsByPaymentStatus.pending} ({stats?.totalStudents ? 
-                            ((studentsByPaymentStatus.pending / stats.totalStudents) * 100).toFixed(1) : 0}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-orange-500"
-                          style={{ 
-                            width: stats?.totalStudents 
-                              ? `${(studentsByPaymentStatus.pending / stats.totalStudents) * 100}%` 
-                              : '0%' 
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Room Allocated</span>
-                        <span className="font-bold text-blue-600">
-                          {studentsByAllocation.allocated} ({stats?.totalStudents ? 
-                            ((studentsByAllocation.allocated / stats.totalStudents) * 100).toFixed(1) : 0}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500"
-                          style={{ 
-                            width: stats?.totalStudents 
-                              ? `${(studentsByAllocation.allocated / stats.totalStudents) * 100}%` 
-                              : '0%' 
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Room Statistics</CardTitle>
-                    <CardDescription>Overall occupancy breakdown</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Occupied Rooms</span>
-                        <span className="font-bold text-orange-600">
-                          {stats?.occupiedRooms || 0} ({occupancyRate}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-orange-500"
-                          style={{ width: `${occupancyRate}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Available Rooms</span>
-                        <span className="font-bold text-green-600">
-                          {stats?.availableRooms || 0} ({stats?.totalRooms ? 
-                            ((stats.availableRooms / stats.totalRooms) * 100).toFixed(1) : 0}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-green-500"
-                          style={{ 
-                            width: stats?.totalRooms 
-                              ? `${(stats.availableRooms / stats.totalRooms) * 100}%` 
-                              : '0%' 
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">Total Rooms</span>
-                        <span className="font-bold">{stats?.totalRooms || 0}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm mt-2">
-                        <span className="font-medium">Total Hostels</span>
-                        <span className="font-bold">{stats?.totalHostels || 0}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* Room occupancy donut */}
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <h4 className="font-semibold text-foreground">Room Occupancy</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5 mb-5">Occupied vs available rooms</p>
+                  <ReportDonut
+                    label="rooms"
+                    segments={[
+                      { value: stats?.occupiedRooms || 0, color: '#f59e0b', label: 'Occupied' },
+                      { value: stats?.availableRooms || 0, color: '#10b981', label: 'Available' },
+                    ]}
+                  />
+                  <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Total rooms</span>
+                    <span className="font-bold text-foreground">{stats?.totalRooms || 0}</span>
+                  </div>
+                </div>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Stats Summary</CardTitle>
-                  <CardDescription>Key performance indicators</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-1">
+              {/* Hostel occupancy bar chart */}
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <div className="flex items-start justify-between mb-5">
+                  <div>
+                    <h4 className="font-semibold text-foreground">Hostel Occupancy Breakdown</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">Capacity utilisation per hostel</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-lg">
+                    {hostels.length} hostel{hostels.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <HostelBarChart hostels={hostels} />
+              </div>
+
+              {/* Student allocation donut */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <h4 className="font-semibold text-foreground">Room Allocation</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5 mb-5">Students with and without room assignments</p>
+                  <ReportDonut
+                    label="students"
+                    segments={[
+                      { value: studentsByAllocation.allocated, color: '#6366f1', label: 'Allocated' },
+                      { value: studentsByAllocation.notAllocated, color: '#e5e7eb', label: 'Not allocated' },
+                    ]}
+                  />
+                </div>
+
+                {/* Quick Stats Summary */}
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <h4 className="font-semibold text-foreground mb-4">Quick Stats Summary</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between py-2.5 border-b border-border">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Calendar className="h-4 w-4" />
                         <span className="text-sm">Report Generated</span>
                       </div>
-                      <p className="text-sm font-medium">
-                        {new Date().toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                      <p className="text-sm font-medium text-foreground">
+                        {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </p>
                     </div>
-
-                    <div className="space-y-1">
+                    <div className="flex items-center justify-between py-2.5 border-b border-border">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <UserCheck className="h-4 w-4" />
                         <span className="text-sm">Active Porters</span>
                       </div>
-                      <p className="text-sm font-medium">
-                        {stats?.totalPorters || 0} Porter{(stats?.totalPorters || 0) !== 1 ? 's' : ''}
+                      <p className="text-sm font-bold text-foreground">
+                        {stats?.totalPorters || 0}
                       </p>
                     </div>
-
-                    <div className="space-y-1">
+                    <div className="flex items-center justify-between py-2.5 border-b border-border">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <TrendingUp className="h-4 w-4" />
                         <span className="text-sm">Payment Success Rate</span>
                       </div>
-                      <p className="text-sm font-medium">
-                        {payments.length > 0 
-                          ? ((payments.filter(p => p.status === 'completed').length / payments.length) * 100).toFixed(1)
-                          : 0}%
+                      <p className="text-sm font-bold text-emerald-600">
+                        {payments.length > 0
+                          ? `${((payments.filter(p => p.status === 'completed').length / payments.length) * 100).toFixed(1)}%`
+                          : '0%'}
                       </p>
                     </div>
+                    <div className="flex items-center justify-between py-2.5">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Building2 className="h-4 w-4" />
+                        <span className="text-sm">Total Hostels</span>
+                      </div>
+                      <p className="text-sm font-bold text-foreground">{stats?.totalHostels || 0}</p>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </div>

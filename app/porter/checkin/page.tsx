@@ -602,7 +602,7 @@ export default function PorterCheckInPage() {
                     {/* Department Info */}
                     {student.department && (
                       <div className="space-y-1 text-sm">
-                        <p className="font-medium">{student.department}</p>
+                        <p className="font-medium">{typeof student.department === 'object' ? student.department.name : student.department}</p>
                         {student.level && (
                           <p className="text-muted-foreground">{student.level} Level</p>
                         )}

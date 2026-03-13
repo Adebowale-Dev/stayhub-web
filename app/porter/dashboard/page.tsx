@@ -5,21 +5,22 @@ import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { porterAPI } from '@/services/api';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Users, 
-  CheckCircle, 
-  Clock, 
+import { ActionDropdown } from '@/components/ui/action-dropdown';
+import {
+  Users,
+  CheckCircle,
+  Clock,
   Home,
   UserCheck,
   UserX,
   AlertCircle,
   TrendingUp,
   Calendar,
-  Shield,
-  User
+  ArrowRight,
+  FileText,
+  DoorOpen,
 } from 'lucide-react';
 
 interface PorterDashboardData {
@@ -37,11 +38,42 @@ interface PorterDashboardData {
   }>;
 }
 
+function QuickLink({
+  icon: Icon,
+  label,
+  sub,
+  onClick,
+  iconBg,
+  iconColor,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  sub: string;
+  onClick: () => void;
+  iconBg: string;
+  iconColor: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-4 w-full rounded-2xl border border-border bg-card p-4 hover:shadow-md hover:border-primary/30 transition-all duration-200 group text-left"
+    >
+      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+        <Icon className={`h-5 w-5 ${iconColor}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">{sub}</p>
+      </div>
+      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+    </button>
+  );
+}
+
 export default function PorterDashboard() {
   const router = useRouter();
   const [dashboardData, setDashboardData] = useState<PorterDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [students, setStudents] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -49,26 +81,20 @@ export default function PorterDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch dashboard data and students data
       const [dashboardResponse, studentsResponse] = await Promise.all([
         porterAPI.getDashboard(),
         porterAPI.getStudents()
       ]);
-      
+
       console.log('Dashboard API response:', dashboardResponse.data);
       console.log('Students API response:', studentsResponse.data);
-      
+
       const dashboardInfo = dashboardResponse.data.data || dashboardResponse.data;
       const studentsData = studentsResponse.data.data || studentsResponse.data || [];
-      
-      console.log('All students:', studentsData);
-      setStudents(studentsData);
-      
-      // Calculate stats from student data
+
       const totalStudents = studentsData.length;
-      
-      // Count checked-in students (handle various status formats)
-      const checkedIn = studentsData.filter((s: any) => 
+
+      const checkedIn = studentsData.filter((s: any) =>
         s.checkInStatus === 'checked-in' ||
         s.checkInStatus === 'checked_in' ||
         s.reservationStatus === 'checked_in' ||
@@ -76,8 +102,7 @@ export default function PorterDashboard() {
         s.status === 'checked-in' ||
         s.status === 'checked_in'
       ).length;
-      
-      // Count pending (students with room assignments but not checked in)
+
       const pendingCheckIn = studentsData.filter((s: any) => {
         const hasAssignment = s.assignedRoom || s.roomAssignment || s.reservation?.room;
         const isNotCheckedIn = !(
@@ -90,11 +115,10 @@ export default function PorterDashboard() {
         );
         return hasAssignment && isNotCheckedIn;
       }).length;
-      
-      // Count today's check-ins
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const todayCheckIns = studentsData.filter((s: any) => {
         const checkInDate = s.checkInDate || s.reservation?.checkedInAt;
         if (!checkInDate) return false;
@@ -102,24 +126,14 @@ export default function PorterDashboard() {
         date.setHours(0, 0, 0, 0);
         return date.getTime() === today.getTime();
       }).length;
-      
-      // Merge calculated stats with dashboard data
-      const mergedData = {
+
+      setDashboardData({
         ...dashboardInfo,
         totalStudents,
         checkedIn,
         pendingCheckIn,
         todayCheckIns
-      };
-      
-      console.log('Calculated stats:', {
-        totalStudents,
-        checkedIn,
-        pendingCheckIn,
-        todayCheckIns
       });
-      
-      setDashboardData(mergedData);
     } catch (error) {
       console.error('Failed to fetch dashboard:', error);
     } finally {
@@ -132,9 +146,9 @@ export default function PorterDashboard() {
       <ProtectedRoute allowedRoles={['porter']}>
         <DashboardLayout>
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+            <div className="text-center space-y-3">
+              <div className="h-10 w-10 mx-auto rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading dashboard…</p>
             </div>
           </div>
         </DashboardLayout>
@@ -142,12 +156,12 @@ export default function PorterDashboard() {
     );
   }
 
-  const checkInPercentage = dashboardData?.totalStudents 
-    ? Math.round((dashboardData.checkedIn || 0) / dashboardData.totalStudents * 100)
+  const checkInPct = dashboardData?.totalStudents
+    ? Math.round(((dashboardData.checkedIn || 0) / dashboardData.totalStudents) * 100)
     : 0;
 
-  const occupancyPercentage = dashboardData?.hostelCapacity
-    ? Math.round((dashboardData.totalStudents || 0) / dashboardData.hostelCapacity * 100)
+  const occupancyPct = dashboardData?.hostelCapacity
+    ? Math.round(((dashboardData.totalStudents || 0) / dashboardData.hostelCapacity) * 100)
     : 0;
 
   return (
@@ -155,215 +169,214 @@ export default function PorterDashboard() {
       <DashboardLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <User className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                Porter Dashboard
-              </h2>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Porter Dashboard</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {dashboardData?.hostelName || 'Hostel'} — Manage student check-ins and operations
+              </p>
             </div>
-            <p className="text-gray-600 dark:text-gray-400">
-              {dashboardData?.hostelName || 'Hostel'} - Manage student check-ins and operations
-            </p>
+            <ActionDropdown
+              title="Quick Actions"
+              actions={[
+                { label: 'Check-in Student', icon: UserCheck, onClick: () => router.push('/porter/checkin') },
+                { label: 'View Students', icon: Users, onClick: () => router.push('/porter/students') },
+                { label: 'Manage Rooms', icon: DoorOpen, onClick: () => router.push('/porter/rooms'), separator: true },
+                { label: 'Reports', icon: FileText, onClick: () => router.push('/porter/reports') },
+              ]}
+            />
           </div>
 
-          {/* Quick Stats Overview */}
+          {/* Stat Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {/* Total Students */}
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium">Total Students</CardDescription>
-                  <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <CardTitle className="text-4xl font-bold text-gray-900 dark:text-white">
-                    {dashboardData?.totalStudents || 0}
-                  </CardTitle>
-                  <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                    <Home className="h-3 w-3" />
-                    <span>Assigned to hostel</span>
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Students</p>
+                  <p className="mt-2 text-3xl font-bold text-violet-600">{dashboardData?.totalStudents || 0}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Home className="h-3 w-3 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Assigned to hostel</p>
                   </div>
                   {dashboardData?.hostelCapacity && (
-                    <Badge variant="outline" className="text-xs">
-                      {occupancyPercentage}% Occupancy
-                    </Badge>
+                    <Badge variant="outline" className="mt-2 text-xs">{occupancyPct}% Occupancy</Badge>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Checked In */}
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium">Checked In</CardDescription>
-                  <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-900/30">
+                  <Users className="h-6 w-6 text-violet-600" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <CardTitle className="text-4xl font-bold text-gray-900 dark:text-white">
-                    {dashboardData?.checkedIn || 0}
-                  </CardTitle>
-                  <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                    <UserCheck className="h-3 w-3" />
-                    <span>Successfully checked in</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checked In</p>
+                  <p className="mt-2 text-3xl font-bold text-emerald-600">{dashboardData?.checkedIn || 0}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <UserCheck className="h-3 w-3 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Successfully checked in</p>
                   </div>
                   {dashboardData?.totalStudents && (
-                    <Badge variant="outline" className="text-xs">
-                      {checkInPercentage}% Complete
-                    </Badge>
+                    <Badge variant="outline" className="mt-2 text-xs bg-emerald-50 text-emerald-700 border-emerald-200">{checkInPct}% Complete</Badge>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Pending Check-in */}
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium">Pending</CardDescription>
-                  <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <CheckCircle className="h-6 w-6 text-emerald-600" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <CardTitle className="text-4xl font-bold text-gray-900 dark:text-white">
-                    {dashboardData?.pendingCheckIn || 0}
-                  </CardTitle>
-                  <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                    <UserX className="h-3 w-3" />
-                    <span>Awaiting check-in</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pending</p>
+                  <p className="mt-2 text-3xl font-bold text-amber-600">{dashboardData?.pendingCheckIn || 0}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <UserX className="h-3 w-3 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Awaiting check-in</p>
                   </div>
-                  {dashboardData?.pendingCheckIn && dashboardData.pendingCheckIn > 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      Action Required
-                    </Badge>
+                  {!!dashboardData?.pendingCheckIn && dashboardData.pendingCheckIn > 0 && (
+                    <Badge variant="outline" className="mt-2 text-xs bg-amber-50 text-amber-700 border-amber-200">Action Required</Badge>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Today's Check-ins */}
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium">Today&apos;s Check-ins</CardDescription>
-                  <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30">
+                  <Clock className="h-6 w-6 text-amber-600" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <CardTitle className="text-4xl font-bold text-gray-900 dark:text-white">
-                    {dashboardData?.todayCheckIns || 0}
-                  </CardTitle>
-                  <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                    <TrendingUp className="h-3 w-3" />
-                    <span>Checked in today</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-card border border-border p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Today&apos;s Check-ins</p>
+                  <p className="mt-2 text-3xl font-bold text-sky-600">{dashboardData?.todayCheckIns || 0}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Checked in today</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/30">
+                  <Calendar className="h-6 w-6 text-sky-600" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Quick Actions
-              </CardTitle>
-              <CardDescription>
-                Manage your daily porter operations
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <Button 
-                  className="h-24 flex flex-col gap-2 text-base"
-                  onClick={() => router.push('/porter/checkin')}
-                >
-                  <UserCheck className="h-6 w-6" />
-                  <span>Check-in Student</span>
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="h-24 flex flex-col gap-2 text-base"
-                  onClick={() => router.push('/porter/students')}
-                >
-                  <Users className="h-6 w-6" />
-                  <span>View All Students</span>
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="h-24 flex flex-col gap-2 text-base"
-                  onClick={() => router.push('/porter/pending')}
-                >
-                  <Clock className="h-6 w-6" />
-                  <span>Pending Check-ins</span>
-                </Button>
+          {/* Check-In Progress */}
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-semibold text-foreground">Check-In Progress</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {dashboardData?.checkedIn || 0} of {dashboardData?.totalStudents || 0} students checked in
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="text-2xl font-bold text-primary">{checkInPct}%</div>
+            </div>
+            <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-700"
+                style={{ width: `${checkInPct}%` }}
+              />
+            </div>
+          </div>
 
-          {/* Recent Activity */}
-          {dashboardData?.recentActivity && dashboardData.recentActivity.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Recent Activity
-                </CardTitle>
-                <CardDescription>
-                  Latest check-ins and updates
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {dashboardData.recentActivity.map((activity) => (
-                    <div 
-                      key={activity._id}
-                      className="flex items-center justify-between p-4 rounded-lg border bg-gray-50 dark:bg-gray-900 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                          <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          {/* Bottom section */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Quick Actions */}
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold text-foreground">Quick Actions</h2>
+              <div className="space-y-2.5">
+                <QuickLink
+                  icon={UserCheck}
+                  label="Check-in Student"
+                  sub="Verify and check in a student"
+                  onClick={() => router.push('/porter/checkin')}
+                  iconBg="bg-emerald-100 dark:bg-emerald-900/30"
+                  iconColor="text-emerald-600"
+                />
+                <QuickLink
+                  icon={Users}
+                  label="View All Students"
+                  sub="Browse student list and details"
+                  onClick={() => router.push('/porter/students')}
+                  iconBg="bg-violet-100 dark:bg-violet-900/30"
+                  iconColor="text-violet-600"
+                />
+                <QuickLink
+                  icon={DoorOpen}
+                  label="Manage Rooms"
+                  sub="View and update room status"
+                  onClick={() => router.push('/porter/rooms')}
+                  iconBg="bg-sky-100 dark:bg-sky-900/30"
+                  iconColor="text-sky-600"
+                />
+                <QuickLink
+                  icon={FileText}
+                  label="Reports"
+                  sub="View hostel activity reports"
+                  onClick={() => router.push('/porter/reports')}
+                  iconBg="bg-amber-100 dark:bg-amber-900/30"
+                  iconColor="text-amber-600"
+                />
+              </div>
+            </div>
+
+            {/* Recent Activity / Info */}
+            <div className="space-y-3">
+              {dashboardData?.recentActivity && dashboardData.recentActivity.length > 0 ? (
+                <>
+                  <h2 className="text-base font-semibold text-foreground">Recent Activity</h2>
+                  <div className="rounded-2xl border border-border bg-card p-4 space-y-2.5">
+                    {dashboardData.recentActivity.map((activity) => (
+                      <div
+                        key={activity._id}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-muted/40"
+                      >
+                        <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <UserCheck className="h-4 w-4 text-primary" />
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{activity.studentName}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{activity.action}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{activity.studentName}</p>
+                          <p className="text-xs text-muted-foreground">{activity.action}</p>
                         </div>
+                        <p className="text-xs text-muted-foreground flex-shrink-0">
+                          {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-500">
-                        {new Date(activity.timestamp).toLocaleString()}
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-base font-semibold text-foreground">Porter Guide</h2>
+                  <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-violet-50 dark:to-violet-950/10 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <AlertCircle className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-1">Porter Responsibilities</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          As a porter, you are responsible for checking in students, maintaining hostel records,
+                          and ensuring smooth daily operations. For any issues or emergencies, contact the hostel administrator immediately.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-3 rounded-xl text-xs gap-1.5"
+                          onClick={() => router.push('/porter/checkin')}
+                        >
+                          <UserCheck className="h-3.5 w-3.5" /> Start Check-In
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Info Card */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                    Porter Responsibilities
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    As a porter, you are responsible for checking in students, maintaining hostel records, 
-                    and ensuring smooth daily operations. For any issues or emergencies, contact the hostel administrator immediately.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </DashboardLayout>
     </ProtectedRoute>

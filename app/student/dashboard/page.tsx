@@ -5,11 +5,9 @@ import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { studentAPI } from '@/services/api';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ActionDropdown } from '@/components/ui/action-dropdown';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Ticket, CreditCard, Building2, Home, FileText, Settings, CheckCircle2, Clock, AlertCircle, MapPin, Users, Bed, User } from 'lucide-react';
 
 interface Reservation {
@@ -172,9 +170,9 @@ export default function StudentDashboard() {
       <ProtectedRoute allowedRoles={["student"]}>
         <DashboardLayout>
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-400">Loading your dashboard...</p>
+            <div className="text-center space-y-3">
+              <div className="h-10 w-10 mx-auto rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading your dashboard…</p>
             </div>
           </div>
         </DashboardLayout>
@@ -188,13 +186,13 @@ export default function StudentDashboard() {
     <ProtectedRoute allowedRoles={["student"]}>
       <DashboardLayout>
         <div className="space-y-6">
-          {/* Header Section */}
+          {/* Header */}
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+              <h1 className="text-2xl font-bold text-foreground">
                 Welcome back, {dashboardData?.profile?.firstName || dashboardData?.student?.name?.split(' ')[0] || 'Student'} 👋
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 {(dashboardData?.profile?.matricNo || dashboardData?.student?.matricNumber) && `${dashboardData?.profile?.matricNo || dashboardData?.student?.matricNumber} • `}
                 {dashboardData?.profile?.department?.name || dashboardData?.student?.department || 'Manage your hostel accommodation'}
               </p>
@@ -202,321 +200,220 @@ export default function StudentDashboard() {
             <ActionDropdown
               title="Quick Actions"
               actions={[
-                {
-                  label: 'Browse Hostels',
-                  icon: Home,
-                  onClick: () => router.push('/student/hostels'),
-                },
-                {
-                  label: 'View Reservation',
-                  icon: FileText,
-                  onClick: () => router.push('/student/reservation'),
-                  separator: true,
-                },
-                {
-                  label: 'Settings',
-                  icon: Settings,
-                  onClick: () => router.push('/student/settings'),
-                },
+                { label: 'Browse Hostels', icon: Home, onClick: () => router.push('/student/hostels') },
+                { label: 'View Reservation', icon: FileText, onClick: () => router.push('/student/reservation'), separator: true },
+                { label: 'Settings', icon: Settings, onClick: () => router.push('/student/settings') },
               ]}
             />
           </div>
 
-          {/* Progress Overview */}
-          <Card className="border-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
+          {/* Setup Progress */}
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-semibold text-foreground">Setup Progress</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Complete your accommodation setup</p>
+              </div>
+              <div className="text-2xl font-bold text-primary">{completionProgress}%</div>
+            </div>
+            <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden mb-4">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-700"
+                style={{ width: `${completionProgress}%` }}
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                {
+                  label: 'Profile',
+                  done: isProfileComplete(),
+                  icon: User,
+                  doneText: 'Complete',
+                  pendingText: 'Incomplete',
+                  bg: 'bg-violet-100 dark:bg-violet-900/30',
+                  color: 'text-violet-600',
+                },
+                {
+                  label: 'Payment',
+                  done: dashboardData?.hasPaid,
+                  icon: CreditCard,
+                  doneText: 'Completed',
+                  pendingText: 'Pending',
+                  bg: 'bg-emerald-100 dark:bg-emerald-900/30',
+                  color: 'text-emerald-600',
+                },
+                {
+                  label: 'Reservation',
+                  done: dashboardData?.hasReservation,
+                  icon: Ticket,
+                  doneText: 'Active',
+                  pendingText: 'Not started',
+                  bg: 'bg-sky-100 dark:bg-sky-900/30',
+                  color: 'text-sky-600',
+                },
+              ].map((step) => {
+                const Icon = step.icon;
+                return (
+                  <div key={step.label} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
+                    <div className={`flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center ${step.done ? step.bg : 'bg-muted'}`}>
+                      {step.done
+                        ? <CheckCircle2 className={`h-4.5 w-4.5 ${step.color}`} />
+                        : <Icon className="h-4 w-4 text-muted-foreground" />
+                      }
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{step.label}</p>
+                      <p className={`text-xs ${step.done ? step.color : 'text-muted-foreground'}`}>
+                        {step.done ? step.doneText : step.pendingText}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Status Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Reservation */}
+            <div className="rounded-2xl border border-border bg-card p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between mb-3">
                 <div>
-                  <CardTitle>Setup Progress</CardTitle>
-                  <CardDescription>Complete your accommodation setup</CardDescription>
-                </div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {completionProgress}%
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Progress value={completionProgress} className="h-3" />
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    isProfileComplete() 
-                      ? 'bg-green-500/20 text-green-700 dark:text-green-400' 
-                      : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {isProfileComplete() ? <CheckCircle2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Profile</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      {isProfileComplete() ? 'Complete' : 'Incomplete'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    dashboardData?.hasPaid 
-                      ? 'bg-green-500/20 text-green-700 dark:text-green-400' 
-                      : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {dashboardData?.hasPaid ? <CheckCircle2 className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Payment</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      {dashboardData?.hasPaid ? 'Completed' : 'Pending'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    dashboardData?.hasReservation 
-                      ? 'bg-green-500/20 text-green-700 dark:text-green-400' 
-                      : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {dashboardData?.hasReservation ? <CheckCircle2 className="h-4 w-4" /> : <Ticket className="h-4 w-4" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Reservation</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      {dashboardData?.hasReservation ? 'Active' : 'Not started'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Main Stats Grid */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Reservation Card */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardDescription>Reservation Status</CardDescription>
-                  <Ticket className="h-5 w-5 text-gray-400" />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-2xl">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reservation</p>
+                  <p className="mt-1.5 text-xl font-bold text-foreground">
                     {dashboardData?.hasReservation ? 'Active' : 'No Reservation'}
-                  </CardTitle>
+                  </p>
                   {dashboardData?.reservation && (
-                    <Badge variant="outline" className={getStatusColor(dashboardData.reservation.status)}>
+                    <Badge variant="outline" className={`mt-1.5 gap-1 text-xs ${getStatusColor(dashboardData.reservation.status)}`}>
                       {getStatusIcon(dashboardData.reservation.status)}
-                      <span className="ml-1 capitalize">{dashboardData.reservation.status}</span>
+                      <span className="capitalize">{dashboardData.reservation.status}</span>
                     </Badge>
                   )}
                 </div>
-                {dashboardData?.reservation ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                      <Building2 className="h-4 w-4" />
-                      <span>{dashboardData.reservation.hostel.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                      <Bed className="h-4 w-4" />
-                      <span>Room {dashboardData.reservation.room.roomNumber}, Floor {dashboardData.reservation.room.floor}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                      <MapPin className="h-4 w-4" />
-                      <span>{dashboardData.reservation.hostel.location}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Browse available hostels to make a reservation
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Payment Card */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardDescription>Payment Status</CardDescription>
-                  <CreditCard className="h-5 w-5 text-gray-400" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-900/30">
+                  <Ticket className="h-5 w-5 text-indigo-600" />
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-2xl">
+              </div>
+              {dashboardData?.reservation ? (
+                <div className="space-y-1.5 text-xs text-muted-foreground border-t border-border pt-3 mt-3">
+                  <div className="flex items-center gap-2"><Building2 className="h-3.5 w-3.5" /> {dashboardData.reservation.hostel.name}</div>
+                  <div className="flex items-center gap-2"><Bed className="h-3.5 w-3.5" /> Room {dashboardData.reservation.room.roomNumber}, Floor {dashboardData.reservation.room.floor}</div>
+                  <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {dashboardData.reservation.hostel.location}</div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">Browse available hostels to make a reservation</p>
+              )}
+              <Button size="sm" variant="outline" className="w-full mt-4 rounded-xl text-xs gap-2" onClick={() => router.push('/student/reservation')}>
+                <Ticket className="h-3.5 w-3.5" /> View Details
+              </Button>
+            </div>
+
+            {/* Payment */}
+            <div className="rounded-2xl border border-border bg-card p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment</p>
+                  <p className={`mt-1.5 text-xl font-bold ${dashboardData?.hasPaid ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {dashboardData?.hasPaid ? 'Paid' : 'Pending'}
-                  </CardTitle>
+                  </p>
                   {dashboardData?.payment && (
-                    <Badge variant="outline" className={getStatusColor(dashboardData.payment.status)}>
+                    <Badge variant="outline" className={`mt-1.5 gap-1 text-xs ${getStatusColor(dashboardData.payment.status)}`}>
                       {getStatusIcon(dashboardData.payment.status)}
-                      <span className="ml-1 capitalize">{dashboardData.payment.status}</span>
+                      <span className="capitalize">{dashboardData.payment.status}</span>
                     </Badge>
                   )}
                 </div>
-                {dashboardData?.payment ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Amount:</span>
-                      <span className="font-semibold text-gray-900 dark:text-white">
-                        ₦{dashboardData.payment.amount.toLocaleString()}
-                      </span>
-                    </div>
-                    {dashboardData.payment.reference && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Reference:</span>
-                        <span className="font-mono text-xs text-gray-900 dark:text-white">
-                          {dashboardData.payment.reference}
-                        </span>
-                      </div>
-                    )}
-                    {dashboardData.payment.paymentDate && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Date:</span>
-                        <span className="text-gray-900 dark:text-white">
-                          {new Date(dashboardData.payment.paymentDate).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Payment required to proceed
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${dashboardData?.hasPaid ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                  <CreditCard className={`h-5 w-5 ${dashboardData?.hasPaid ? 'text-emerald-600' : 'text-amber-600'}`} />
+                </div>
+              </div>
+              {dashboardData?.payment ? (
+                <div className="space-y-1.5 text-xs border-t border-border pt-3 mt-3">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="font-bold">₦{dashboardData.payment.amount.toLocaleString()}</span></div>
+                  {dashboardData.payment.reference && <div className="flex justify-between"><span className="text-muted-foreground">Reference</span><code className="font-mono text-xs">{dashboardData.payment.reference.slice(0, 12)}…</code></div>}
+                  {dashboardData.payment.paymentDate && <div className="flex justify-between"><span className="text-muted-foreground">Date</span><span>{new Date(dashboardData.payment.paymentDate).toLocaleDateString()}</span></div>}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">Payment required to proceed with hostel selection</p>
+              )}
+              {!dashboardData?.hasPaid && (
+                <Button size="sm" className="w-full mt-4 rounded-xl text-xs gap-2" onClick={() => router.push('/student/payment')}>
+                  <CreditCard className="h-3.5 w-3.5" /> Make Payment
+                </Button>
+              )}
+            </div>
 
-            {/* Available Hostels Card */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardDescription>Available Hostels</CardDescription>
-                  <Building2 className="h-5 w-5 text-gray-400" />
+            {/* Available Hostels */}
+            <div className="rounded-2xl border border-border bg-card p-5 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Available Hostels</p>
+                  <p className="mt-1.5 text-3xl font-bold text-sky-600">{dashboardData?.availableHostels || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Ready for booking</p>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <CardTitle className="text-2xl">
-                  {dashboardData?.availableHostels || 0}
-                </CardTitle>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <Home className="h-4 w-4" />
-                    <span>Hostels ready for booking</span>
-                  </div>
-                  {dashboardData?.availableHostels && dashboardData.availableHostels > 0 && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full mt-2"
-                      onClick={() => router.push('/student/hostels')}
-                    >
-                      Browse Now
-                    </Button>
-                  )}
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/30">
+                  <Building2 className="h-5 w-5 text-sky-600" />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <Button size="sm" variant="outline" className="w-full mt-4 rounded-xl text-xs gap-2" onClick={() => router.push('/student/hostels')}>
+                <Home className="h-3.5 w-3.5" /> Browse Hostels
+              </Button>
+            </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {!dashboardData?.hasPaid && (
-              <Button 
-                size="lg" 
-                className="w-full"
-                onClick={() => router.push('/student/payment')}
-              >
-                <CreditCard className="mr-2 h-5 w-5" />
-                Make Payment
-              </Button>
-            )}
-            {!dashboardData?.hasReservation && dashboardData?.hasPaid && (
-              <Button 
-                size="lg" 
-                className="w-full"
-                onClick={() => router.push('/student/hostels')}
-              >
-                <Home className="mr-2 h-5 w-5" />
-                Browse Hostels
-              </Button>
-            )}
-            {dashboardData?.hasReservation && (
-              <Button 
-                size="lg" 
-                variant="outline" 
-                className="w-full"
-                onClick={() => router.push('/student/reservation')}
-              >
-                <FileText className="mr-2 h-5 w-5" />
-                View Reservation Details
-              </Button>
-            )}
-          </div>
-
-          {/* Next Steps Card */}
+          {/* Next Steps */}
           {(!isProfileComplete() || !dashboardData?.hasPaid || !dashboardData?.hasReservation) && (
-            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Next Steps
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {!isProfileComplete() && (
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-900/30">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
-                        1
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white">Complete Your Profile</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Fill in all required information in your profile
-                        </p>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="mt-2"
-                          onClick={() => router.push('/student/profile')}
-                        >
-                          Go to Profile
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  {!dashboardData?.hasPaid && (
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-900/30">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
-                        {isProfileComplete() ? '1' : '2'}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Complete Payment</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {isProfileComplete() 
-                            ? 'Pay your accommodation fee to unlock hostel selection' 
-                            : 'Available after profile completion'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {!dashboardData?.hasReservation && (
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-900/30">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
-                        {isProfileComplete() && dashboardData?.hasPaid ? '1' : isProfileComplete() || dashboardData?.hasPaid ? '2' : '3'}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Select Your Hostel</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {isProfileComplete() && dashboardData?.hasPaid 
-                            ? 'Browse available hostels and make your reservation' 
-                            : 'Available after profile completion and payment'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+            <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-violet-50 dark:to-violet-950/10 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-primary" />
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <h2 className="font-semibold text-foreground">Next Steps</h2>
+                  <p className="text-xs text-muted-foreground">Complete these steps to secure your accommodation</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {!isProfileComplete() && (
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-card">
+                    <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">1</span>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-foreground">Complete Your Profile</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Fill in all required information in your profile</p>
+                      <Button variant="outline" size="sm" className="mt-2 rounded-lg text-xs gap-1.5" onClick={() => router.push('/student/profile')}>
+                        <User className="h-3.5 w-3.5" /> Go to Profile
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {!dashboardData?.hasPaid && (
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-card">
+                    <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">
+                      {isProfileComplete() ? '1' : '2'}
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-foreground">Complete Payment</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {isProfileComplete() ? 'Pay your accommodation fee to unlock hostel selection' : 'Available after profile completion'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {!dashboardData?.hasReservation && (
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-card">
+                    <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">
+                      {isProfileComplete() && dashboardData?.hasPaid ? '1' : isProfileComplete() || dashboardData?.hasPaid ? '2' : '3'}
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-foreground">Select Your Hostel</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {isProfileComplete() && dashboardData?.hasPaid ? 'Browse available hostels and make your reservation' : 'Available after profile completion and payment'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </DashboardLayout>
