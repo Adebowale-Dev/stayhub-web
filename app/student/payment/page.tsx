@@ -24,7 +24,7 @@ import {
 
 interface PaymentInfo {
   amount: number;
-  status: 'paid' | 'pending' | 'not-paid';
+  status: 'paid' | 'pending' | 'not-paid' | 'completed' | 'success' | string;
   reference?: string;
   paidAt?: string;
   expiresAt?: string;

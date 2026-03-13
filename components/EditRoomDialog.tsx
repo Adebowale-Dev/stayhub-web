@@ -191,7 +191,6 @@ export function EditRoomDialog({ open, onOpenChange, room, onSuccess }: EditRoom
 
         if (axiosError.response?.status === 404) {
           alert("❌ Room editing is not yet supported by the backend.\n\nThe backend needs to implement: PUT /api/admin/rooms/:id\n\nPlease contact the backend team.");
-          setError("Backend endpoint not available");
         } else if (axiosError.response?.status === 400) {
           const errorData = axiosError.response?.data;
           const validationErrors = errorData?.errors || [];

@@ -56,7 +56,7 @@ export default function StudentSettings() {
     setMessage(null);
 
     try {
-      await authAPI.changePassword(passwordData.oldPassword, passwordData.newPassword);
+      await authAPI.changePassword(passwordData.oldPassword, passwordData.newPassword, passwordData.confirmPassword);
       setMessage({ type: 'success', text: 'Password changed successfully!' });
       setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error: unknown) {

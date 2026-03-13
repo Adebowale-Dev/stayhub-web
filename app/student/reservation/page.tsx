@@ -323,7 +323,7 @@ export default function ReservationPage() {
                       <CardTitle>Reservation Status</CardTitle>
                       <CardDescription>Current status of your room reservation</CardDescription>
                     </div>
-                    {getStatusBadge(reservation.status)}
+                    {getStatusBadge(reservation.status ?? 'pending')}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -476,7 +476,7 @@ export default function ReservationPage() {
                       <p className="font-medium">
                         {reservation.student?.firstName && reservation.student?.lastName 
                           ? `${reservation.student.firstName} ${reservation.student.lastName}`
-                          : user?.name || 'Not Available'}
+                          : `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Not Available'}
                       </p>
                     </div>
                     <div className="space-y-1">
