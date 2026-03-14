@@ -16,6 +16,7 @@ import {
   User,
   UserCheck,
   FileText,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useAuthStore from '@/store/useAuthStore';
@@ -29,6 +30,7 @@ interface NavItem {
 
 const adminNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+  { title: 'Notifications', href: '/admin/notifications', icon: Bell },
   { title: 'Colleges', href: '/admin/colleges', icon: Building2 },
   { title: 'Hostels', href: '/admin/dashboard/hostels', icon: Home },
   { title: 'Rooms', href: '/admin/rooms', icon: DoorOpen },
@@ -41,6 +43,7 @@ const studentNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/student/dashboard', icon: LayoutDashboard },
   { title: 'Browse Hostels', href: '/student/hostels', icon: Home },
   { title: 'My Reservation', href: '/student/reservation', icon: Ticket },
+  { title: 'Notifications', href: '/student/notifications', icon: Bell },
   { title: 'Payment', href: '/student/payment', icon: CreditCard },
   { title: 'Profile', href: '/student/profile', icon: User },
 ];

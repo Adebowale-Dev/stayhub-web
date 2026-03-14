@@ -41,6 +41,9 @@ interface Student {
   checkInDate?: string;
   department?: string;
   level?: string;
+  invitationHistoryCount?: number;
+  latestInvitationAction?: string;
+  latestInvitationAt?: string;
 }
 
 export default function PorterStudentsPage() {
@@ -78,6 +81,8 @@ export default function PorterStudentsPage() {
       
       // Map the data to handle different field structures
       const mappedStudents = studentsData.map((student: any) => {
+        const invitationHistory = Array.isArray(student.invitationHistory) ? student.invitationHistory : [];
+        const latestInvitation = invitationHistory[invitationHistory.length - 1];
         // Check for room assignment in multiple possible locations
         let roomAssignment = null;
         
@@ -124,7 +129,10 @@ export default function PorterStudentsPage() {
           checkInStatus,
           checkInDate: student.checkInDate || student.reservation?.checkedInAt || student.updatedAt,
           department: student.department?.name || student.department,
-          level: student.level
+          level: student.level,
+          invitationHistoryCount: invitationHistory.length,
+          latestInvitationAction: latestInvitation?.action,
+          latestInvitationAt: latestInvitation?.createdAt,
         };
       });
       
@@ -204,8 +212,9 @@ export default function PorterStudentsPage() {
   const stats = {
     total: students.length,
     checkedIn: students.filter(s => s.checkInStatus === 'checked-in' || s.checkInStatus === 'checked_in').length,
-    pending: students.filter(s => s.checkInStatus === 'pending' || s.checkInStatus === 'confirmed').length,
+    pending: students.filter(s => s.checkInStatus === 'pending' || s.checkInStatus === 'confirmed' || s.checkInStatus === 'temporary').length,
     notCheckedIn: students.filter(s => s.checkInStatus === 'not-checked-in').length,
+    pendingInvites: students.filter(s => s.checkInStatus === 'temporary').length,
   };
 
   if (loading) {
@@ -235,7 +244,7 @@ export default function PorterStudentsPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>Total Students</CardDescription>
@@ -284,6 +293,19 @@ export default function PorterStudentsPage() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <XCircle className="h-4 w-4" />
                   <span>Not started</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>Invite Pending</CardDescription>
+                <CardTitle className="text-2xl">{stats.pendingInvites}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  <span>Awaiting student approval</span>
                 </div>
               </CardContent>
             </Card>
@@ -403,26 +425,46 @@ export default function PorterStudentsPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {(student.checkInStatus === 'checked-in' || student.checkInStatus === 'checked_in' || student.checkInStatus === 'active') ? (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Checked In
-                              </Badge>
-                            ) : (student.checkInStatus === 'pending' || student.checkInStatus === 'confirmed') ? (
-                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800">
-                                <Clock className="h-3 w-3 mr-1" />
-                                {student.checkInStatus === 'confirmed' ? 'Confirmed' : 'Pending'}
-                              </Badge>
-                            ) : student.checkInStatus === 'not-checked-in' ? (
-                              <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:border-gray-800">
-                                <XCircle className="h-3 w-3 mr-1" />
-                                Not Checked In
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">
-                                {student.checkInStatus || 'Unknown'}
-                              </Badge>
-                            )}
+                            <div className="space-y-1">
+                              {(student.checkInStatus === 'checked-in' || student.checkInStatus === 'checked_in' || student.checkInStatus === 'active') ? (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Checked In
+                                </Badge>
+                              ) : student.checkInStatus === 'temporary' ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Invite Pending
+                                </Badge>
+                              ) : (student.checkInStatus === 'pending' || student.checkInStatus === 'confirmed') ? (
+                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  {student.checkInStatus === 'confirmed' ? 'Confirmed' : 'Pending'}
+                                </Badge>
+                              ) : student.checkInStatus === 'not-checked-in' ? (
+                                <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:border-gray-800">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Not Checked In
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">
+                                  {student.checkInStatus || 'Unknown'}
+                                </Badge>
+                              )}
+                              {student.invitationHistoryCount ? (
+                                <div className="space-y-1">
+                                  <p className="text-xs text-muted-foreground">
+                                    Invites: {student.invitationHistoryCount}
+                                    {student.latestInvitationAction ? `, latest ${student.latestInvitationAction}` : ''}
+                                  </p>
+                                  {student.latestInvitationAt ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(student.latestInvitationAt).toLocaleDateString()}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {student.checkInDate 

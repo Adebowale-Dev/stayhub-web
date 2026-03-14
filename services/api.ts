@@ -81,7 +81,7 @@ export const adminAPI = {
   getStudentsByDepartment: (collegeId: string, deptId: string, params?: Record<string, unknown>) => api.get(`/admin/colleges/${collegeId}/departments/${deptId}/students`, { params }),
 
   // Students
-  getStudents: () => api.get('/admin/students'),
+  getStudents: (params?: Record<string, unknown>) => api.get('/admin/students', { params }),
   createStudent: (data: Record<string, unknown>) => api.post('/admin/students', data),
   updateStudent: (id: string, data: Record<string, unknown>) => api.put(`/admin/students/${id}`, data),
   updateStudentPassword: (id: string, password: string) => 
@@ -114,6 +114,14 @@ export const adminAPI = {
   reassignHostel: (porterId: string, hostelId: string) =>
     api.post('/admin/porters/assign-hostel', { porterId, hostelId }),
 
+  // Notifications
+  getNotificationHistory: (params?: Record<string, unknown>) =>
+    api.get('/admin/notifications/history', { params }),
+  sendTestNotification: (data: Record<string, unknown>) =>
+    api.post('/admin/notifications/test', data),
+  sendBroadcastNotification: (data: Record<string, unknown>) =>
+    api.post('/admin/notifications/broadcast', data),
+
   // Payments
   getPayments: (params?: Record<string, unknown>) => api.get('/admin/payments', { params }),
   getPaymentStats: () => api.get('/admin/payment/stats'),
@@ -124,11 +132,18 @@ export const adminAPI = {
 // Student API methods
 export const studentAPI = {
   getDashboard: () => api.get('/student/dashboard'),
+  getAlerts: () => api.get('/student/alerts'),
+  getNotifications: () => api.get('/student/notifications'),
+  markNotificationsRead: (payload: { ids?: string[]; markAll?: boolean }) =>
+    api.post('/student/notifications/read', payload),
+  getInvitationHistory: () => api.get('/student/invitations/history'),
   getHostels: () => api.get('/student/hostels'),
   getRooms: (hostelId: string) => api.get(`/student/hostels/${hostelId}/rooms`),
   getBunks: (roomId: string) => api.get(`/student/rooms/${roomId}/bunks`),
   reserveRoom: (data: Record<string, unknown>) => api.post('/student/reservations', data),
   getReservation: () => api.get('/student/reservation'),
+  respondToInvitation: (action: 'approve' | 'reject') =>
+    api.post('/student/reservation/respond', { action }),
 };
 
 // Porter API methods

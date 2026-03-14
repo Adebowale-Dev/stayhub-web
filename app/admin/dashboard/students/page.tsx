@@ -84,6 +84,10 @@ interface Student {
     _id: string;
     roomNumber: string;
   };
+  invitationHistory?: Array<{
+    action?: string;
+    createdAt?: string;
+  }>;
 }
 
 function StudentsPageContent() {
@@ -189,6 +193,8 @@ function StudentsPageContent() {
     pending: students.filter((s) => s.paymentStatus === "pending").length,
     assigned: students.filter((s) => s.assignedHostel && s.assignedRoom).length,
     unassigned: students.filter((s) => !s.assignedHostel || !s.assignedRoom).length,
+    pendingInvites: students.filter((s) => s.reservationStatus === "temporary").length,
+    inviteActivity: students.filter((s) => (s.invitationHistory?.length || 0) > 0).length,
   };
 
   const getPaymentStatusColor = (status: string) => {
@@ -497,6 +503,25 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           </Card>
         </div>
 
+        <Card className="p-4 border shadow-none">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Invitation Activity</p>
+              <p className="text-xs text-muted-foreground">
+                Track group reservation approvals and pending invites across students.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                Pending Invites: {stats.pendingInvites}
+              </Badge>
+              <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
+                Students With Invite History: {stats.inviteActivity}
+              </Badge>
+            </div>
+          </div>
+        </Card>
+
         {/* Filters */}
         <Card className="p-4 border shadow-none">
           <div className="space-y-4">
@@ -701,10 +726,31 @@ Current backend behavior is abnormal - password hashing should take <1 second.
                         <TableCell className="text-sm text-center hidden xl:table-cell">
                           {student.assignedHostel ? (
                             <div className="flex flex-col">
+                              {(() => {
+                                const latestInvitation = student.invitationHistory?.length
+                                  ? student.invitationHistory[student.invitationHistory.length - 1]
+                                  : null;
+                                return (
+                                  <>
                               <span className="font-medium">{student.assignedHostel.name}</span>
                               <span className="text-xs text-muted-foreground">
                                 Room {student.assignedRoom?.roomNumber || "-"}
                               </span>
+                              {student.invitationHistory?.length ? (
+                                <>
+                                  <span className="text-xs text-muted-foreground">
+                                    Invites: {student.invitationHistory.length}
+                                  </span>
+                                  {latestInvitation?.action ? (
+                                    <span className="text-xs text-muted-foreground">
+                                      Latest: {latestInvitation.action}
+                                    </span>
+                                  ) : null}
+                                </>
+                              ) : null}
+                                  </>
+                                );
+                              })()}
                             </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>

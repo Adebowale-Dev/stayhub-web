@@ -83,7 +83,11 @@ export default function StudentDashboard() {
       const mappedData = {
         ...data,
         hasPaid: data.paymentStatus === 'paid' || data.hasPaid,
-        hasReservation: data.reservationStatus === 'checked_in' || data.reservationStatus === 'confirmed' || data.hasReservation
+        hasReservation:
+          data.reservationStatus === 'temporary' ||
+          data.reservationStatus === 'checked_in' ||
+          data.reservationStatus === 'confirmed' ||
+          data.hasReservation
       };
       
       console.log('Mapped Data:', { hasPaid: mappedData.hasPaid, hasReservation: mappedData.hasReservation });
@@ -109,6 +113,7 @@ export default function StudentDashboard() {
       case 'completed':
       case 'confirmed':
         return 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20';
+      case 'temporary':
       case 'pending':
         return 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20';
       case 'failed':
@@ -124,6 +129,7 @@ export default function StudentDashboard() {
       case 'completed':
       case 'confirmed':
         return <CheckCircle2 className="h-4 w-4" />;
+      case 'temporary':
       case 'pending':
         return <Clock className="h-4 w-4" />;
       case 'failed':
@@ -281,7 +287,11 @@ export default function StudentDashboard() {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reservation</p>
                   <p className="mt-1.5 text-xl font-bold text-foreground">
-                    {dashboardData?.hasReservation ? 'Active' : 'No Reservation'}
+                    {dashboardData?.reservation?.status === 'temporary'
+                      ? 'Pending Approval'
+                      : dashboardData?.hasReservation
+                      ? 'Active'
+                      : 'No Reservation'}
                   </p>
                   {dashboardData?.reservation && (
                     <Badge variant="outline" className={`mt-1.5 gap-1 text-xs ${getStatusColor(dashboardData.reservation.status)}`}>
