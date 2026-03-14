@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -9,174 +8,127 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Building2, 
-  Search, 
-  MapPin,
-  Users,
-  BedDouble,
-  CheckCircle2,
-  ArrowRight,
-  Home,
-  Filter
-} from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
+import { Building2, Search, MapPin, Users, BedDouble, CheckCircle2, ArrowRight, Home, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from '@/components/ui/select';
 interface Hostel {
-  _id: string;
-  name: string;
-  code: string;
-  location: string;
-  totalRooms: number;
-  totalCapacity: number;       // fixed ceiling e.g. 200
-  availableCapacity: number;  // spots still open (may be stale if backend doesn't update on reservation)
-  // Backend may return current occupant count under any of these names:
-  currentOccupants?: number;
-  occupiedCount?: number;
-  studentsCount?: number;
-  registeredStudents?: number;
-  totalOccupants?: number;
-  occupiedBeds?: number;
-  gender: 'male' | 'female' | 'mixed';
-  level: number;
-  isActive: boolean;
-  description?: string;
-  availableRooms?: number;
-  occupancyRate?: number;
+    _id: string;
+    name: string;
+    code: string;
+    location: string;
+    totalRooms: number;
+    totalCapacity: number;
+    availableCapacity: number;
+    currentOccupants?: number;
+    occupiedCount?: number;
+    studentsCount?: number;
+    registeredStudents?: number;
+    totalOccupants?: number;
+    occupiedBeds?: number;
+    gender: 'male' | 'female' | 'mixed';
+    level: number;
+    isActive: boolean;
+    description?: string;
+    availableRooms?: number;
+    occupancyRate?: number;
 }
-
 export default function BrowseHostelsPage() {
-  const router = useRouter();
-  const [hostels, setHostels] = useState<Hostel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
-  const [studentGender, setStudentGender] = useState<string>('');
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async (retryCount = 0) => {
-    setLoading(true);
-    try {
-      // Load student profile first
-      try {
-        const response = await studentAPI.getDashboard();
-        const dashboardData = response.data.data || response.data;
-        const gender = dashboardData.student?.gender || dashboardData.profile?.gender || '';
-        setStudentGender(gender.toLowerCase());
-      } catch (error) {
-        console.error('Failed to load student profile:', error);
-        console.warn('Unable to load student gender. Showing all hostels.');
-      }
-
-      // Add delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Then load hostels
-      const response = await studentAPI.getHostels();
-      const hostelsData = response.data.data || response.data || [];
-      console.log('Hostels from API:', hostelsData);
-      setHostels(hostelsData);
-    } catch (error: any) {
-      console.error('Failed to load hostels:', error);
-      
-      // Handle rate limiting with retry
-      if (error.response?.status === 429 && retryCount < 3) {
-        const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-        console.log(`Rate limited. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return loadData(retryCount + 1);
-      }
-      
-      let errorMessage = 'Failed to load hostels.';
-      
-      if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') {
-        errorMessage = '⚠️ Backend Server Issue\n\nThe server is not responding or is taking too long.\n\nPlease check:\n• Backend server is running on port 5000\n• Database connection is active\n• No errors in backend logs';
-      } else if (error.response?.status === 429) {
-        errorMessage = 'Too many requests. Please refresh the page in a moment.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else {
-        errorMessage = 'Unable to connect to the server. Please ensure the backend is running.';
-      }
-      
-      alert(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredHostels = hostels.filter((hostel) => {
-    // Search filter
-    const matchesSearch = 
-      hostel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      hostel.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      hostel.location.toLowerCase().includes(searchQuery.toLowerCase());
-
-    // Gender filter - Show hostels matching student's gender OR mixed hostels
-    let matchesStudentGender = true;
-    if (studentGender) {
-      matchesStudentGender = hostel.gender === studentGender || hostel.gender === 'mixed';
-    }
-
-    // Availability filter — use computed available capacity (deducts on reservation)
-    const hasAvailability = getAvailableCapacity(hostel) > 0;
-    const matchesAvailability = 
-      availabilityFilter === 'all' ||
-      (availabilityFilter === 'available' && hasAvailability) ||
-      (availabilityFilter === 'full' && !hasAvailability);
-
-    return matchesSearch && matchesStudentGender && matchesAvailability && hostel.isActive;
-  });
-
-  /**
-   * Compute the real available capacity.
-   * Priority:
-   * 1. totalCapacity - currentOccupants  (most accurate — deducts on reservation)
-   * 2. availableCapacity from backend    (may lag if backend doesn't update on reservation)
-   * 3. availableRooms as last resort
-   */
-  const getAvailableCapacity = (hostel: Hostel): number => {
-    const total = hostel.totalCapacity ?? 0;
-    // Try any "current occupants" field the backend might return
-    const occupied =
-      hostel.currentOccupants ??
-      hostel.occupiedCount ??
-      hostel.studentsCount ??
-      hostel.registeredStudents ??
-      hostel.totalOccupants ??
-      hostel.occupiedBeds ??
-      null;
-
-    if (occupied !== null && total > 0) {
-      return Math.max(0, total - occupied);
-    }
-    // Fall back to whatever the backend sends as availableCapacity
-    return hostel.availableCapacity ?? hostel.availableRooms ?? 0;
-  };
-
-  const getOccupancyColor = (rate: number) => {
-    if (rate >= 90) return 'text-red-600';
-    if (rate >= 70) return 'text-orange-600';
-    if (rate >= 50) return 'text-yellow-600';
-    return 'text-green-600';
-  };
-
-  const handleViewRooms = (hostelId: string) => {
-    router.push(`/student/hostels/${hostelId}/rooms`);
-  };
-
-  if (loading) {
-    return (
-      <ProtectedRoute allowedRoles={['student']}>
+    const router = useRouter();
+    const [hostels, setHostels] = useState<Hostel[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
+    const [studentGender, setStudentGender] = useState<string>('');
+    useEffect(() => {
+        loadData();
+    }, []);
+    const loadData = async (retryCount = 0) => {
+        setLoading(true);
+        try {
+            try {
+                const response = await studentAPI.getDashboard();
+                const dashboardData = response.data.data || response.data;
+                const gender = dashboardData.student?.gender || dashboardData.profile?.gender || '';
+                setStudentGender(gender.toLowerCase());
+            }
+            catch (error) {
+                console.error('Failed to load student profile:', error);
+                console.warn('Unable to load student gender. Showing all hostels.');
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const response = await studentAPI.getHostels();
+            const hostelsData = response.data.data || response.data || [];
+            console.log('Hostels from API:', hostelsData);
+            setHostels(hostelsData);
+        }
+        catch (error: any) {
+            console.error('Failed to load hostels:', error);
+            if (error.response?.status === 429 && retryCount < 3) {
+                const delay = Math.pow(2, retryCount) * 1000;
+                console.log(`Rate limited. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return loadData(retryCount + 1);
+            }
+            let errorMessage = 'Failed to load hostels.';
+            if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') {
+                errorMessage = '⚠️ Backend Server Issue\n\nThe server is not responding or is taking too long.\n\nPlease check:\n• Backend server is running on port 5000\n• Database connection is active\n• No errors in backend logs';
+            }
+            else if (error.response?.status === 429) {
+                errorMessage = 'Too many requests. Please refresh the page in a moment.';
+            }
+            else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            else {
+                errorMessage = 'Unable to connect to the server. Please ensure the backend is running.';
+            }
+            alert(errorMessage);
+        }
+        finally {
+            setLoading(false);
+        }
+    };
+    const filteredHostels = hostels.filter((hostel) => {
+        const matchesSearch = hostel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            hostel.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            hostel.location.toLowerCase().includes(searchQuery.toLowerCase());
+        let matchesStudentGender = true;
+        if (studentGender) {
+            matchesStudentGender = hostel.gender === studentGender || hostel.gender === 'mixed';
+        }
+        const hasAvailability = getAvailableCapacity(hostel) > 0;
+        const matchesAvailability = availabilityFilter === 'all' ||
+            (availabilityFilter === 'available' && hasAvailability) ||
+            (availabilityFilter === 'full' && !hasAvailability);
+        return matchesSearch && matchesStudentGender && matchesAvailability && hostel.isActive;
+    });
+    const getAvailableCapacity = (hostel: Hostel): number => {
+        const total = hostel.totalCapacity ?? 0;
+        const occupied = hostel.currentOccupants ??
+            hostel.occupiedCount ??
+            hostel.studentsCount ??
+            hostel.registeredStudents ??
+            hostel.totalOccupants ??
+            hostel.occupiedBeds ??
+            null;
+        if (occupied !== null && total > 0) {
+            return Math.max(0, total - occupied);
+        }
+        return hostel.availableCapacity ?? hostel.availableRooms ?? 0;
+    };
+    const getOccupancyColor = (rate: number) => {
+        if (rate >= 90)
+            return 'text-red-600';
+        if (rate >= 70)
+            return 'text-orange-600';
+        if (rate >= 50)
+            return 'text-yellow-600';
+        return 'text-green-600';
+    };
+    const handleViewRooms = (hostelId: string) => {
+        router.push(`/student/hostels/${hostelId}/rooms`);
+    };
+    if (loading) {
+        return (<ProtectedRoute allowedRoles={['student']}>
         <DashboardLayout>
           <div className="flex flex-col items-center justify-center h-64 space-y-3">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -184,15 +136,12 @@ export default function BrowseHostelsPage() {
             <p className="text-xs text-muted-foreground">This may take a moment if the server is starting up</p>
           </div>
         </DashboardLayout>
-      </ProtectedRoute>
-    );
-  }
-
-  return (
-    <ProtectedRoute allowedRoles={['student']}>
+      </ProtectedRoute>);
+    }
+    return (<ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="space-y-6">
-          {/* Header */}
+          
           <div>
             <h2 className="text-3xl font-bold tracking-tight text-foreground">
               Browse Hostels
@@ -202,20 +151,18 @@ export default function BrowseHostelsPage() {
             </p>
           </div>
 
-          {/* Stats Overview - Filtered by student gender */}
+          
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>Available for You</CardDescription>
                 <CardTitle className="text-2xl">
-                  {hostels.filter(h => 
-                    (h.gender === studentGender || h.gender === 'mixed') && h.isActive
-                  ).length}
+                  {hostels.filter(h => (h.gender === studentGender || h.gender === 'mixed') && h.isActive).length}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
+                  <Building2 className="h-4 w-4"/>
                   <span>Matching your gender</span>
                 </div>
               </CardContent>
@@ -225,57 +172,37 @@ export default function BrowseHostelsPage() {
               <CardHeader className="pb-3">
                 <CardDescription>With Availability</CardDescription>
                 <CardTitle className="text-2xl text-green-600">
-                  {hostels.filter(h => 
-                    (h.gender === studentGender || h.gender === 'mixed') && 
-                    getAvailableCapacity(h) > 0
-                  ).length}
+                  {hostels.filter(h => (h.gender === studentGender || h.gender === 'mixed') &&
+            getAvailableCapacity(h) > 0).length}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-4 w-4"/>
                   <span>Rooms available</span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Your Gender</CardDescription>
-                <CardTitle className="text-2xl capitalize">
-                  {studentGender || 'Loading...'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span>Showing {studentGender} hostels only</span>
-                </div>
-              </CardContent>
-            </Card> */}
+            
           </div>
 
-          {/* Filters */}
+          
           <Card>
             <CardContent className="pt-6">
               <div className="grid gap-4 md:grid-cols-2">
-                {/* Search */}
+                
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name, code, or location..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"/>
+                  <Input placeholder="Search by name, code, or location..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10"/>
                 </div>
 
-                {/* Availability Filter */}
+                
                 <Select value={availabilityFilter} onValueChange={setAvailabilityFilter}>
                   <SelectTrigger>
                     <div className="flex items-center gap-2">
-                      <Filter className="h-4 w-4 text-muted-foreground" />
-                      <SelectValue placeholder="Filter by availability" />
+                      <Filter className="h-4 w-4 text-muted-foreground"/>
+                      <SelectValue placeholder="Filter by availability"/>
                     </div>
                   </SelectTrigger>
                   <SelectContent>
@@ -288,24 +215,20 @@ export default function BrowseHostelsPage() {
             </CardContent>
           </Card>
 
-          {/* Hostels Grid */}
+          
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredHostels.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <Home className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            {filteredHostels.length === 0 ? (<div className="col-span-full text-center py-12">
+                <Home className="h-12 w-12 mx-auto text-muted-foreground mb-4"/>
                 <p className="text-muted-foreground">No hostels found</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Try adjusting your filters
                 </p>
-              </div>
-            ) : (
-              filteredHostels.map((hostel) => (
-                <Card key={hostel._id} className="hover:shadow-lg transition-shadow">
+              </div>) : (filteredHostels.map((hostel) => (<Card key={hostel._id} className="hover:shadow-lg transition-shadow">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <CardTitle className="flex items-center gap-2">
-                          <Building2 className="h-5 w-5 text-primary" />
+                          <Building2 className="h-5 w-5 text-primary"/>
                           {hostel.name}
                         </CardTitle>
                         <CardDescription className="mt-1">
@@ -314,25 +237,21 @@ export default function BrowseHostelsPage() {
                           </Badge>
                         </CardDescription>
                       </div>
-                      {getAvailableCapacity(hostel) > 0 ? (
-                        <Badge className="bg-green-500">Available</Badge>
-                      ) : (
-                        <Badge variant="destructive">Full</Badge>
-                      )}
+                      {getAvailableCapacity(hostel) > 0 ? (<Badge className="bg-green-500">Available</Badge>) : (<Badge variant="destructive">Full</Badge>)}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Location */}
+                    
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
+                      <MapPin className="h-4 w-4"/>
                       <span>{hostel.location}</span>
                     </div>
 
-                    {/* Stats */}
+                    
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <BedDouble className="h-3 w-3" />
+                          <BedDouble className="h-3 w-3"/>
                           <span>Rooms</span>
                         </div>
                         <p className="text-sm font-semibold">
@@ -341,7 +260,7 @@ export default function BrowseHostelsPage() {
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Users className="h-3 w-3" />
+                          <Users className="h-3 w-3"/>
                           <span>Capacity</span>
                         </div>
                         <p className="text-sm font-semibold">
@@ -350,9 +269,8 @@ export default function BrowseHostelsPage() {
                       </div>
                     </div>
 
-                    {/* Occupancy */}
-                    {hostel.occupancyRate !== undefined && (
-                      <div className="space-y-1">
+                    
+                    {hostel.occupancyRate !== undefined && (<div className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">Occupancy</span>
                           <span className={`font-semibold ${getOccupancyColor(hostel.occupancyRate)}`}>
@@ -360,23 +278,17 @@ export default function BrowseHostelsPage() {
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${
-                              hostel.occupancyRate >= 90 ? 'bg-red-500' :
-                              hostel.occupancyRate >= 70 ? 'bg-orange-500' :
-                              hostel.occupancyRate >= 50 ? 'bg-yellow-500' :
-                              'bg-green-500'
-                            }`}
-                            style={{ width: `${hostel.occupancyRate}%` }}
-                          />
+                          <div className={`h-2 rounded-full transition-all ${hostel.occupancyRate >= 90 ? 'bg-red-500' :
+                    hostel.occupancyRate >= 70 ? 'bg-orange-500' :
+                        hostel.occupancyRate >= 50 ? 'bg-yellow-500' :
+                            'bg-green-500'}`} style={{ width: `${hostel.occupancyRate}%` }}/>
                         </div>
-                      </div>
-                    )}
+                      </div>)}
 
-                    {/* Gender & Level */}
+                    
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline" className="text-xs">
-                        <Users className="h-3 w-3 mr-1" />
+                        <Users className="h-3 w-3 mr-1"/>
                         {hostel.gender}
                       </Badge>
                       <Badge variant="outline" className="text-xs">
@@ -384,42 +296,27 @@ export default function BrowseHostelsPage() {
                       </Badge>
                     </div>
 
-                    {/* Description */}
-                    {hostel.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">
+                    
+                    {hostel.description && (<p className="text-xs text-muted-foreground line-clamp-2">
                         {hostel.description}
-                      </p>
-                    )}
+                      </p>)}
 
-                    {/* Action Button */}
-                    <Button 
-                      className="w-full" 
-                      onClick={() => handleViewRooms(hostel._id)}
-                      disabled={getAvailableCapacity(hostel) === 0}
-                    >
-                      {getAvailableCapacity(hostel) > 0 ? (
-                        <>
+                    
+                    <Button className="w-full" onClick={() => handleViewRooms(hostel._id)} disabled={getAvailableCapacity(hostel) === 0}>
+                      {getAvailableCapacity(hostel) > 0 ? (<>
                           View Rooms
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
-                      ) : (
-                        'No Rooms Available'
-                      )}
+                          <ArrowRight className="ml-2 h-4 w-4"/>
+                        </>) : ('No Rooms Available')}
                     </Button>
                   </CardContent>
-                </Card>
-              ))
-            )}
+                </Card>)))}
           </div>
 
-          {/* Results Count */}
-          {filteredHostels.length > 0 && (
-            <div className="text-center text-sm text-muted-foreground">
+          
+          {filteredHostels.length > 0 && (<div className="text-center text-sm text-muted-foreground">
               Showing {filteredHostels.length} of {hostels.length} hostel{hostels.length !== 1 ? 's' : ''}
-            </div>
-          )}
+            </div>)}
         </div>
       </DashboardLayout>
-    </ProtectedRoute>
-  );
+    </ProtectedRoute>);
 }

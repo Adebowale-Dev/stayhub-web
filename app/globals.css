@@ -228,7 +228,7 @@
   }
 }
 
-/* Force light theme — overrides dark CSS variables for auth pages */
+
 .force-light {
   --background: oklch(0.965 0.008 264);
   --foreground: oklch(0.141 0.005 285.823);

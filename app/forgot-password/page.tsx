@@ -1,34 +1,26 @@
 import { Building2 } from 'lucide-react';
 import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm';
-
 export default function ForgotPasswordPage() {
-  return (
-    <div className="force-light min-h-screen flex items-center justify-center relative overflow-hidden">
+    return (<div className="force-light min-h-screen flex items-center justify-center relative overflow-hidden">
 
-      {/* Blurred background photo */}
-      <img
-        src="https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1400&q=80"
-        alt=""
-        aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover scale-110"
-        style={{ filter: 'blur(18px)' }}
-      />
+      
+      <img src="https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1400&q=80" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover scale-110" style={{ filter: 'blur(18px)' }}/>
 
-      {/* Light wash overlay */}
-      <div className="absolute inset-0 dark:bg-slate-900/65" />
+      
+      <div className="absolute inset-0 dark:bg-slate-900/65"/>
 
-      {/* Centered form card */}
+      
       <div className="relative z-10 w-full max-w-sm mx-auto px-4 py-12">
 
-        {/* Logo */}
+        
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <Building2 className="h-5 w-5 text-primary-foreground" />
+            <Building2 className="h-5 w-5 text-primary-foreground"/>
           </div>
           <span className="text-xl font-bold text-foreground tracking-tight">StayHub</span>
         </div>
 
-        {/* Card */}
+        
         <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-7 shadow-lg">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-foreground">Forgot password?</h2>
@@ -45,6 +37,5 @@ export default function ForgotPasswordPage() {
         </p>
       </div>
 
-    </div>
-  );
+    </div>);
 }

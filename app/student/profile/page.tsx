@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -10,234 +9,200 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  Building2,
-  GraduationCap,
-  CreditCard,
-  Home,
-  AlertCircle,
-  CheckCircle2,
-  ArrowLeft,
-  Settings
-} from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Building2, GraduationCap, CreditCard, Home, AlertCircle, CheckCircle2, ArrowLeft, Settings } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-
 interface StudentProfile {
-  _id: string;
-  name: string;
-  email: string;
-  matricNumber?: string;
-  matricNo?: string;
-  phoneNumber?: string;
-  dateOfBirth?: string;
-  address?: string;
-  college?: {
     _id: string;
     name: string;
-  };
-  department?: {
-    _id: string;
-    name: string;
-  };
-  level?: string | number;
-  gender?: string;
-  paymentStatus?: string;
-  reservationStatus?: string;
-  createdAt: string;
-  reservation?: {
-    _id: string;
-    hostel: {
-      _id: string;
-      name: string;
-      location?: string;
-    };
-    room: {
-      _id: string;
-      roomNumber: string;
-      floor?: number;
-    };
-    bunk?: {
-      _id: string;
-      bunkNumber: number;
-    };
-    status: string;
-  };
-}
-
-export default function StudentProfile() {
-  const router = useRouter();
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editedProfile, setEditedProfile] = useState<{
-    name?: string;
-    email?: string;
-    phoneNumber?: string;
-    address?: string;
-    dateOfBirth?: string;
-    gender?: string;
+    email: string;
     matricNumber?: string;
-    level?: string;
-  }>({});
-
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      const response = await authAPI.getProfile();
-      console.log('Profile API Response:', response.data);
-      
-      // Backend returns data in "user" field, not "data"
-      const profileData = response.data.user || response.data.data || response.data;
-      console.log('Profile Data:', profileData);
-      
-      setProfile(profileData);
-      // Store all editable fields
-      setEditedProfile({
-        name: profileData.name || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim(),
-        email: profileData.email || '',
-        phoneNumber: profileData.phoneNumber || '',
-        address: profileData.address || '',
-        dateOfBirth: profileData.dateOfBirth || '',
-        gender: profileData.gender || '',
-        matricNumber: profileData.matricNo || profileData.matricNumber || '',
-        level: profileData.level?.toString() || '',
-      });
-    } catch (error) {
-      console.error('Failed to fetch profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = () => {
-    setEditing(true);
-    // Copy all editable fields
-    setEditedProfile({
-      name: profile?.name || '',
-      email: profile?.email || '',
-      phoneNumber: profile?.phoneNumber || '',
-      address: profile?.address || '',
-      dateOfBirth: profile?.dateOfBirth || '',
-      gender: profile?.gender || '',
-      matricNumber: profile?.matricNumber || '',
-      level: profile?.level?.toString() || '',
-    });
-  };
-
-  const handleCancel = () => {
-    setEditing(false);
-    // Reset all editable fields
-    setEditedProfile({
-      name: profile?.name || '',
-      email: profile?.email || '',
-      phoneNumber: profile?.phoneNumber || '',
-      address: profile?.address || '',
-      dateOfBirth: profile?.dateOfBirth || '',
-      gender: profile?.gender || '',
-      matricNumber: profile?.matricNumber || '',
-      level: profile?.level?.toString() || '',
-    });
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      // Send data with backend field names
-      const updatePayload = {
-        name: editedProfile.name,
-        email: editedProfile.email,
-        phoneNumber: editedProfile.phoneNumber,
-        address: editedProfile.address,
-        dateOfBirth: editedProfile.dateOfBirth,
-        gender: editedProfile.gender,
-        matricNo: editedProfile.matricNumber, // Backend uses matricNo, not matricNumber
-        level: editedProfile.level ? parseInt(editedProfile.level) : undefined, // Convert to number
-      };
-
-      const response = await authAPI.updateProfile(updatePayload);
-      
-      // Backend returns updated data in "user" field
-      const updatedProfile = response.data.user || response.data.data || response.data;
-      setProfile(updatedProfile);
-      
-      // Update editedProfile with all editable fields from response
-      setEditedProfile({
-        name: updatedProfile.name || `${updatedProfile.firstName || ''} ${updatedProfile.lastName || ''}`.trim(),
-        email: updatedProfile.email || '',
-        phoneNumber: updatedProfile.phoneNumber || '',
-        address: updatedProfile.address || '',
-        dateOfBirth: updatedProfile.dateOfBirth || '',
-        gender: updatedProfile.gender || '',
-        matricNumber: updatedProfile.matricNo || updatedProfile.matricNumber || '',
-        level: updatedProfile.level?.toString() || '',
-      });
-      
-      setEditing(false);
-      alert('Profile updated successfully!');
-    } catch (error: unknown) {
-      console.error('Failed to update profile:', error);
-      
-      const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
-      let errorMessage = 'Failed to update profile. Please try again.';
-      
-      if (axiosError.response?.status === 404) {
-        errorMessage = 'Update profile endpoint not found. Please contact the administrator.';
-      } else if (axiosError.response?.data?.message) {
-        errorMessage = axiosError.response.data.message;
-      }
-      
-      alert(errorMessage);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleInputChange = (field: 'name' | 'email' | 'phoneNumber' | 'address' | 'dateOfBirth' | 'gender' | 'matricNumber' | 'level', value: string) => {
-    setEditedProfile({ ...editedProfile, [field]: value });
-  };
-
-  const getStatusBadge = (status?: string) => {
-    if (!status) return null;
-    
-    const colors = {
-      completed: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
-      pending: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20',
-      failed: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
-      confirmed: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
-      cancelled: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
+    matricNo?: string;
+    phoneNumber?: string;
+    dateOfBirth?: string;
+    address?: string;
+    college?: {
+        _id: string;
+        name: string;
     };
-
-    const icons = {
-      completed: CheckCircle2,
-      confirmed: CheckCircle2,
-      pending: AlertCircle,
-      failed: AlertCircle,
-      cancelled: AlertCircle,
+    department?: {
+        _id: string;
+        name: string;
     };
-
-    const color = colors[status as keyof typeof colors] || colors.pending;
-    const Icon = icons[status as keyof typeof icons] || AlertCircle;
-
-    return (
-      <Badge variant="outline" className={color}>
-        <Icon className="h-3 w-3 mr-1" />
+    level?: string | number;
+    gender?: string;
+    paymentStatus?: string;
+    reservationStatus?: string;
+    createdAt: string;
+    reservation?: {
+        _id: string;
+        hostel: {
+            _id: string;
+            name: string;
+            location?: string;
+        };
+        room: {
+            _id: string;
+            roomNumber: string;
+            floor?: number;
+        };
+        bunk?: {
+            _id: string;
+            bunkNumber: number;
+        };
+        status: string;
+    };
+}
+export default function StudentProfile() {
+    const router = useRouter();
+    const [profile, setProfile] = useState<StudentProfile | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [editedProfile, setEditedProfile] = useState<{
+        name?: string;
+        email?: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: string;
+        gender?: string;
+        matricNumber?: string;
+        level?: string;
+    }>({});
+    useEffect(() => {
+        fetchProfile();
+    }, []);
+    const fetchProfile = async () => {
+        try {
+            const response = await authAPI.getProfile();
+            console.log('Profile API Response:', response.data);
+            const profileData = response.data.user || response.data.data || response.data;
+            console.log('Profile Data:', profileData);
+            setProfile(profileData);
+            setEditedProfile({
+                name: profileData.name || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim(),
+                email: profileData.email || '',
+                phoneNumber: profileData.phoneNumber || '',
+                address: profileData.address || '',
+                dateOfBirth: profileData.dateOfBirth || '',
+                gender: profileData.gender || '',
+                matricNumber: profileData.matricNo || profileData.matricNumber || '',
+                level: profileData.level?.toString() || '',
+            });
+        }
+        catch (error) {
+            console.error('Failed to fetch profile:', error);
+        }
+        finally {
+            setLoading(false);
+        }
+    };
+    const handleEdit = () => {
+        setEditing(true);
+        setEditedProfile({
+            name: profile?.name || '',
+            email: profile?.email || '',
+            phoneNumber: profile?.phoneNumber || '',
+            address: profile?.address || '',
+            dateOfBirth: profile?.dateOfBirth || '',
+            gender: profile?.gender || '',
+            matricNumber: profile?.matricNumber || '',
+            level: profile?.level?.toString() || '',
+        });
+    };
+    const handleCancel = () => {
+        setEditing(false);
+        setEditedProfile({
+            name: profile?.name || '',
+            email: profile?.email || '',
+            phoneNumber: profile?.phoneNumber || '',
+            address: profile?.address || '',
+            dateOfBirth: profile?.dateOfBirth || '',
+            gender: profile?.gender || '',
+            matricNumber: profile?.matricNumber || '',
+            level: profile?.level?.toString() || '',
+        });
+    };
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const updatePayload = {
+                name: editedProfile.name,
+                email: editedProfile.email,
+                phoneNumber: editedProfile.phoneNumber,
+                address: editedProfile.address,
+                dateOfBirth: editedProfile.dateOfBirth,
+                gender: editedProfile.gender,
+                matricNo: editedProfile.matricNumber,
+                level: editedProfile.level ? parseInt(editedProfile.level) : undefined,
+            };
+            const response = await authAPI.updateProfile(updatePayload);
+            const updatedProfile = response.data.user || response.data.data || response.data;
+            setProfile(updatedProfile);
+            setEditedProfile({
+                name: updatedProfile.name || `${updatedProfile.firstName || ''} ${updatedProfile.lastName || ''}`.trim(),
+                email: updatedProfile.email || '',
+                phoneNumber: updatedProfile.phoneNumber || '',
+                address: updatedProfile.address || '',
+                dateOfBirth: updatedProfile.dateOfBirth || '',
+                gender: updatedProfile.gender || '',
+                matricNumber: updatedProfile.matricNo || updatedProfile.matricNumber || '',
+                level: updatedProfile.level?.toString() || '',
+            });
+            setEditing(false);
+            alert('Profile updated successfully!');
+        }
+        catch (error: unknown) {
+            console.error('Failed to update profile:', error);
+            const axiosError = error as {
+                response?: {
+                    status?: number;
+                    data?: {
+                        message?: string;
+                    };
+                };
+            };
+            let errorMessage = 'Failed to update profile. Please try again.';
+            if (axiosError.response?.status === 404) {
+                errorMessage = 'Update profile endpoint not found. Please contact the administrator.';
+            }
+            else if (axiosError.response?.data?.message) {
+                errorMessage = axiosError.response.data.message;
+            }
+            alert(errorMessage);
+        }
+        finally {
+            setSaving(false);
+        }
+    };
+    const handleInputChange = (field: 'name' | 'email' | 'phoneNumber' | 'address' | 'dateOfBirth' | 'gender' | 'matricNumber' | 'level', value: string) => {
+        setEditedProfile({ ...editedProfile, [field]: value });
+    };
+    const getStatusBadge = (status?: string) => {
+        if (!status)
+            return null;
+        const colors = {
+            completed: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
+            pending: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20',
+            failed: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
+            confirmed: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
+            cancelled: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
+        };
+        const icons = {
+            completed: CheckCircle2,
+            confirmed: CheckCircle2,
+            pending: AlertCircle,
+            failed: AlertCircle,
+            cancelled: AlertCircle,
+        };
+        const color = colors[status as keyof typeof colors] || colors.pending;
+        const Icon = icons[status as keyof typeof icons] || AlertCircle;
+        return (<Badge variant="outline" className={color}>
+        <Icon className="h-3 w-3 mr-1"/>
         <span className="capitalize">{status}</span>
-      </Badge>
-    );
-  };
-
-  if (loading) {
-    return (
-      <ProtectedRoute allowedRoles={["student"]}>
+      </Badge>);
+    };
+    if (loading) {
+        return (<ProtectedRoute allowedRoles={["student"]}>
         <DashboardLayout>
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -246,23 +211,16 @@ export default function StudentProfile() {
             </div>
           </div>
         </DashboardLayout>
-      </ProtectedRoute>
-    );
-  }
-
-  return (
-    <ProtectedRoute allowedRoles={["student"]}>
+      </ProtectedRoute>);
+    }
+    return (<ProtectedRoute allowedRoles={["student"]}>
       <DashboardLayout>
         <div className="space-y-6">
-          {/* Header */}
+          
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => router.push('/student/dashboard')}
-              >
-                <ArrowLeft className="h-5 w-5" />
+              <Button variant="ghost" size="icon" onClick={() => router.push('/student/dashboard')}>
+                <ArrowLeft className="h-5 w-5"/>
               </Button>
               <div>
                 <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -274,46 +232,32 @@ export default function StudentProfile() {
               </div>
             </div>
             <div className="flex gap-2">
-              {editing ? (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={handleCancel}
-                    disabled={saving}
-                  >
+              {editing ? (<>
+                  <Button variant="outline" onClick={handleCancel} disabled={saving}>
                     Cancel
                   </Button>
                   <Button onClick={handleSave} disabled={saving}>
                     {saving ? 'Saving...' : 'Save Changes'}
                   </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={handleEdit}
-                  >
-                    <User className="h-4 w-4 mr-2" />
+                </>) : (<>
+                  <Button variant="outline" onClick={handleEdit}>
+                    <User className="h-4 w-4 mr-2"/>
                     Edit Profile
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push('/student/settings')}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
+                  <Button variant="outline" onClick={() => router.push('/student/settings')}>
+                    <Settings className="h-4 w-4 mr-2"/>
                     Settings
                   </Button>
-                </>
-              )}
+                </>)}
             </div>
           </div>
 
-          {/* Profile Header Card */}
-          {/* <Card className="border-2 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800"> */}
+          
+          
             <CardContent className="pt-6">
               <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
                 <div className="h-32 w-32 border-4 border-white dark:border-gray-800 shadow-lg rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <User className="h-16 w-16 text-gray-400 dark:text-gray-600" />
+                  <User className="h-16 w-16 text-gray-400 dark:text-gray-600"/>
                 </div>
                 <div className="flex-1">
                   <div className="flex flex-col gap-3 mb-3">
@@ -321,47 +265,41 @@ export default function StudentProfile() {
                       {profile?.name}
                     </h3>
                     <div className="flex gap-2 flex-wrap">
-                      {/* {getStatusBadge(profile?.paymentStatus)}
-                      {getStatusBadge(profile?.reservationStatus)} */}
+                      
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                      <GraduationCap className="h-4 w-4 text-blue-500" />
+                      <GraduationCap className="h-4 w-4 text-blue-500"/>
                       <span className="font-medium">Matric:</span>
                       <span>{profile?.matricNo || profile?.matricNumber}</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                      <Mail className="h-4 w-4 text-blue-500" />
+                      <Mail className="h-4 w-4 text-blue-500"/>
                       <span className="font-medium">Email:</span>
                       <span className="truncate">{profile?.email}</span>
                     </div>
-                    {profile?.phoneNumber && (
-                      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                        <Phone className="h-4 w-4 text-blue-500" />
+                    {profile?.phoneNumber && (<div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                        <Phone className="h-4 w-4 text-blue-500"/>
                         <span className="font-medium">Phone:</span>
                         <span>{profile.phoneNumber}</span>
-                      </div>
-                    )}
-                    {profile?.level && (
-                      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                        <GraduationCap className="h-4 w-4 text-blue-500" />
+                      </div>)}
+                    {profile?.level && (<div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                        <GraduationCap className="h-4 w-4 text-blue-500"/>
                         <span className="font-medium">Level:</span>
                         <span>{profile.level}</span>
-                      </div>
-                    )}
+                      </div>)}
                   </div>
                 </div>
               </div>
             </CardContent>
-          {/* </Card> */}
+          
 
-          {/* Hostel Assignment Card - Full Width */}
-          {profile?.reservation && (
-            <Card className="border-l-4 border-l-blue-500">
+          
+          {profile?.reservation && (<Card className="border-l-4 border-l-blue-500">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Home className="h-5 w-5 text-blue-500" />
+                  <Home className="h-5 w-5 text-blue-500"/>
                   Hostel Assignment
                 </CardTitle>
                 <CardDescription>
@@ -372,42 +310,37 @@ export default function StudentProfile() {
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                      <Building2 className="h-4 w-4" />
+                      <Building2 className="h-4 w-4"/>
                       Hostel Name
                     </Label>
                     <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-md">
                       <p className="text-lg font-semibold text-blue-900 dark:text-blue-100">
                         {profile.reservation.hostel.name}
                       </p>
-                      {profile.reservation.hostel.location && (
-                        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                      {profile.reservation.hostel.location && (<p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
                           {profile.reservation.hostel.location}
-                        </p>
-                      )}
+                        </p>)}
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                      <Home className="h-4 w-4" />
+                      <Home className="h-4 w-4"/>
                       Room Number
                     </Label>
                     <div className="p-3 bg-green-50 dark:bg-green-950 rounded-md">
                       <p className="text-2xl font-bold text-green-900 dark:text-green-100">
                         {profile.reservation.room.roomNumber}
                       </p>
-                      {profile.reservation.room.floor && (
-                        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                      {profile.reservation.room.floor && (<p className="text-sm text-green-700 dark:text-green-300 mt-1">
                           Floor {profile.reservation.room.floor}
-                        </p>
-                      )}
+                        </p>)}
                     </div>
                   </div>
 
-                  {profile.reservation.bunk && (
-                    <div className="space-y-2">
+                  {profile.reservation.bunk && (<div className="space-y-2">
                       <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                        <Home className="h-4 w-4" />
+                        <Home className="h-4 w-4"/>
                         Bunk Number
                       </Label>
                       <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-md">
@@ -415,33 +348,27 @@ export default function StudentProfile() {
                           {profile.reservation.bunk.bunkNumber}
                         </p>
                       </div>
-                    </div>
-                  )}
+                    </div>)}
                 </div>
 
                 <div className="mt-4 flex items-center gap-2">
                   <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    <CheckCircle2 className="h-3 w-3 mr-1"/>
                     {profile.reservation.status === 'checked_in' ? 'Checked In' : 'Reserved'}
                   </Badge>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => router.push('/student/reservation')}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => router.push('/student/reservation')}>
                     View Full Details
                   </Button>
                 </div>
               </CardContent>
-            </Card>
-          )}
+            </Card>)}
 
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Personal Information */}
+            
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+                  <User className="h-5 w-5"/>
                   Personal Information
                 </CardTitle>
                 <CardDescription>
@@ -451,107 +378,65 @@ export default function StudentProfile() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <User className="h-4 w-4" />
+                    <User className="h-4 w-4"/>
                     Full Name
                   </Label>
-                  <Input 
-                    value={editing ? (editedProfile.name || '') : (profile?.name || '')} 
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    disabled={!editing}
-                    className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
-                  />
+                  <Input value={editing ? (editedProfile.name || '') : (profile?.name || '')} onChange={(e) => handleInputChange('name', e.target.value)} disabled={!editing} className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''}/>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <Mail className="h-4 w-4" />
+                    <Mail className="h-4 w-4"/>
                     Email Address
                   </Label>
-                  <Input 
-                    value={editing ? (editedProfile.email || '') : (profile?.email || '')} 
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    disabled={!editing}
-                    className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
-                  />
+                  <Input value={editing ? (editedProfile.email || '') : (profile?.email || '')} onChange={(e) => handleInputChange('email', e.target.value)} disabled={!editing} className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''}/>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <Phone className="h-4 w-4" />
+                    <Phone className="h-4 w-4"/>
                     Phone Number
                   </Label>
-                  <Input 
-                    value={editing ? (editedProfile.phoneNumber || '') : (profile?.phoneNumber || 'Not provided')} 
-                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                    disabled={!editing} 
-                    className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
-                    placeholder={editing ? 'Enter phone number' : ''}
-                  />
+                  <Input value={editing ? (editedProfile.phoneNumber || '') : (profile?.phoneNumber || 'Not provided')} onChange={(e) => handleInputChange('phoneNumber', e.target.value)} disabled={!editing} className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} placeholder={editing ? 'Enter phone number' : ''}/>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <Calendar className="h-4 w-4" />
+                    <Calendar className="h-4 w-4"/>
                     Date of Birth
                   </Label>
-                  <Input 
-                    type={editing ? 'date' : 'text'}
-                    value={editing 
-                      ? (editedProfile.dateOfBirth ? new Date(editedProfile.dateOfBirth).toISOString().split('T')[0] : '') 
-                      : (profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString() : 'Not provided')
-                    }
-                    onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                    disabled={!editing} 
-                    className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
-                  />
+                  <Input type={editing ? 'date' : 'text'} value={editing
+            ? (editedProfile.dateOfBirth ? new Date(editedProfile.dateOfBirth).toISOString().split('T')[0] : '')
+            : (profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString() : 'Not provided')} onChange={(e) => handleInputChange('dateOfBirth', e.target.value)} disabled={!editing} className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''}/>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <User className="h-4 w-4" />
+                    <User className="h-4 w-4"/>
                     Gender
                   </Label>
-                  {editing ? (
-                    <select 
-                      value={editedProfile.gender || ''}
-                      onChange={(e) => handleInputChange('gender', e.target.value)}
-                      className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                      aria-label="Select gender"
-                    >
+                  {editing ? (<select value={editedProfile.gender || ''} onChange={(e) => handleInputChange('gender', e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" aria-label="Select gender">
                       <option value="">Select gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
-                    </select>
-                  ) : (
-                    <Input 
-                      value={profile?.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : 'Not provided'} 
-                      disabled 
-                      className="bg-gray-50 dark:bg-gray-900" 
-                    />
-                  )}
+                    </select>) : (<Input value={profile?.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : 'Not provided'} disabled className="bg-gray-50 dark:bg-gray-900"/>)}
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <MapPin className="h-4 w-4" />
+                    <MapPin className="h-4 w-4"/>
                     Address
                   </Label>
-                  <Input 
-                    value={editing ? (editedProfile.address || '') : (profile?.address || 'Not provided')} 
-                    onChange={(e) => handleInputChange('address', e.target.value)}
-                    disabled={!editing} 
-                    className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
-                    placeholder={editing ? 'Enter your address' : ''}
-                  />
+                  <Input value={editing ? (editedProfile.address || '') : (profile?.address || 'Not provided')} onChange={(e) => handleInputChange('address', e.target.value)} disabled={!editing} className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} placeholder={editing ? 'Enter your address' : ''}/>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Academic Information */}
+            
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
+                  <Building2 className="h-5 w-5"/>
                   Academic Information
                 </CardTitle>
                 <CardDescription>
@@ -561,89 +446,59 @@ export default function StudentProfile() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <GraduationCap className="h-4 w-4" />
+                    <GraduationCap className="h-4 w-4"/>
                     Matriculation Number
                   </Label>
-                  <Input 
-                    value={editing ? (editedProfile.matricNumber || '') : (profile?.matricNo || profile?.matricNumber || '')} 
-                    onChange={(e) => handleInputChange('matricNumber', e.target.value)}
-                    disabled={!editing}
-                    className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''} 
-                  />
+                  <Input value={editing ? (editedProfile.matricNumber || '') : (profile?.matricNo || profile?.matricNumber || '')} onChange={(e) => handleInputChange('matricNumber', e.target.value)} disabled={!editing} className={!editing ? 'bg-gray-50 dark:bg-gray-900' : ''}/>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <Building2 className="h-4 w-4" />
+                    <Building2 className="h-4 w-4"/>
                     College
                   </Label>
-                  <Input 
-                    value={profile?.college?.name || 'Not assigned'} 
-                    disabled 
-                    className="bg-gray-50 dark:bg-gray-900" 
-                  />
+                  <Input value={profile?.college?.name || 'Not assigned'} disabled className="bg-gray-50 dark:bg-gray-900"/>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <GraduationCap className="h-4 w-4" />
+                    <GraduationCap className="h-4 w-4"/>
                     Department
                   </Label>
-                  <Input 
-                    value={profile?.department?.name || 'Not assigned'} 
-                    disabled 
-                    className="bg-gray-50 dark:bg-gray-900" 
-                  />
+                  <Input value={profile?.department?.name || 'Not assigned'} disabled className="bg-gray-50 dark:bg-gray-900"/>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <GraduationCap className="h-4 w-4" />
+                    <GraduationCap className="h-4 w-4"/>
                     Level
                   </Label>
-                  {editing ? (
-                    <select 
-                      value={editedProfile.level || ''}
-                      onChange={(e) => handleInputChange('level', e.target.value)}
-                      className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                      aria-label="Select level"
-                    >
+                  {editing ? (<select value={editedProfile.level || ''} onChange={(e) => handleInputChange('level', e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" aria-label="Select level">
                       <option value="">Select level</option>
                       <option value="100">100 Level</option>
                       <option value="200">200 Level</option>
                       <option value="300">300 Level</option>
                       <option value="400">400 Level</option>
                       <option value="500">500 Level</option>
-                    </select>
-                  ) : (
-                    <Input 
-                      value={profile?.level ? `${profile.level} Level` : 'Not provided'} 
-                      disabled 
-                      className="bg-gray-50 dark:bg-gray-900" 
-                    />
-                  )}
+                    </select>) : (<Input value={profile?.level ? `${profile.level} Level` : 'Not provided'} disabled className="bg-gray-50 dark:bg-gray-900"/>)}
                 </div>
 
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
-                    <Calendar className="h-4 w-4" />
+                    <Calendar className="h-4 w-4"/>
                     Account Created
                   </Label>
-                  <Input 
-                    value={profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'Unknown'} 
-                    disabled 
-                    className="bg-gray-50 dark:bg-gray-900" 
-                  />
+                  <Input value={profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'Unknown'} disabled className="bg-gray-50 dark:bg-gray-900"/>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Accommodation Status */}
+          
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Home className="h-5 w-5" />
+                <Home className="h-5 w-5"/>
                 Accommodation Status
               </CardTitle>
               <CardDescription>
@@ -655,30 +510,30 @@ export default function StudentProfile() {
                 <div className="p-6 rounded-lg border bg-gray-50 dark:bg-gray-900 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-semibold">
-                      <CreditCard className="h-5 w-5 text-blue-500" />
+                      <CreditCard className="h-5 w-5 text-blue-500"/>
                       Payment Status
                     </Label>
                     {getStatusBadge(profile?.paymentStatus)}
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {profile?.paymentStatus === 'completed' 
-                      ? 'Your payment has been verified and confirmed' 
-                      : 'Complete payment to proceed with hostel selection'}
+                    {profile?.paymentStatus === 'completed'
+            ? 'Your payment has been verified and confirmed'
+            : 'Complete payment to proceed with hostel selection'}
                   </p>
                 </div>
 
                 <div className="p-6 rounded-lg border bg-gray-50 dark:bg-gray-900 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-semibold">
-                      <Home className="h-5 w-5 text-blue-500" />
+                      <Home className="h-5 w-5 text-blue-500"/>
                       Reservation Status
                     </Label>
                     {getStatusBadge(profile?.reservationStatus)}
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {profile?.reservationStatus === 'confirmed' 
-                      ? 'Your hostel reservation is confirmed' 
-                      : 'No active reservation yet'}
+                    {profile?.reservationStatus === 'confirmed'
+            ? 'Your hostel reservation is confirmed'
+            : 'No active reservation yet'}
                   </p>
                 </div>
               </div>
@@ -686,7 +541,7 @@ export default function StudentProfile() {
           </Card>
 
           <Alert>
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="h-4 w-4"/>
             <AlertDescription>
               You can update your personal information using the &quot;Edit Profile&quot; button above. 
               For password and security settings, visit the <button onClick={() => router.push('/student/settings')} className="font-medium underline">Settings page</button>.
@@ -694,6 +549,5 @@ export default function StudentProfile() {
           </Alert>
         </div>
       </DashboardLayout>
-    </ProtectedRoute>
-  );
+    </ProtectedRoute>);
 }

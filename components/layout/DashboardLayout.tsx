@@ -1,269 +1,223 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, Bell, Search, AlertCircle, CheckCircle2, Info, TriangleAlert } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { authAPI, studentAPI } from '../../services/api';
 import { Button } from '@/components/ui/button';
-import {Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, } from '@/components/ui/dropdown-menu';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AnimatedThemeToggler } from '../themetoggler';
-
 interface DashboardLayoutProps {
-  children: React.ReactNode;
+    children: React.ReactNode;
 }
-
 interface StudentNotification {
-  _id: string;
-  type: 'warning' | 'info' | 'error' | 'success';
-  icon?: string;
-  title?: string;
-  message: string;
-  createdAt?: string;
-  destination?: string;
-  read?: boolean;
+    _id: string;
+    type: 'warning' | 'info' | 'error' | 'success';
+    icon?: string;
+    title?: string;
+    message: string;
+    createdAt?: string;
+    destination?: string;
+    read?: boolean;
 }
-
 const getAlertVisuals = (type: StudentNotification['type']) => {
-  switch (type) {
-    case 'success':
-      return {
-        icon: CheckCircle2,
-        iconClassName: 'text-emerald-600',
-        dotClassName: 'bg-emerald-500',
-      };
-    case 'error':
-      return {
-        icon: AlertCircle,
-        iconClassName: 'text-red-600',
-        dotClassName: 'bg-red-500',
-      };
-    case 'warning':
-      return {
-        icon: TriangleAlert,
-        iconClassName: 'text-amber-600',
-        dotClassName: 'bg-amber-500',
-      };
-    default:
-      return {
-        icon: Info,
-        iconClassName: 'text-sky-600',
-        dotClassName: 'bg-sky-500',
-      };
-  }
+    switch (type) {
+        case 'success':
+            return {
+                icon: CheckCircle2,
+                iconClassName: 'text-emerald-600',
+                dotClassName: 'bg-emerald-500',
+            };
+        case 'error':
+            return {
+                icon: AlertCircle,
+                iconClassName: 'text-red-600',
+                dotClassName: 'bg-red-500',
+            };
+        case 'warning':
+            return {
+                icon: TriangleAlert,
+                iconClassName: 'text-amber-600',
+                dotClassName: 'bg-amber-500',
+            };
+        default:
+            return {
+                icon: Info,
+                iconClassName: 'text-sky-600',
+                dotClassName: 'bg-sky-500',
+            };
+    }
 };
-
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { user, logout } = useAuthStore();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifications, setNotifications] = useState<StudentNotification[]>([]);
-  const [loadingAlerts, setLoadingAlerts] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const loadAlerts = async () => {
-      if (user?.role !== 'student') {
-        setNotifications([]);
-        setUnreadCount(0);
-        return;
-      }
-
-      setLoadingAlerts(true);
-      try {
-        const response = await studentAPI.getNotifications();
-        const nextAlerts = response.data?.data || [];
-        const nextUnreadCount = response.data?.meta?.unreadCount ?? 0;
-        if (mounted) {
-          setNotifications(Array.isArray(nextAlerts) ? nextAlerts : []);
-          setUnreadCount(nextUnreadCount);
+    const router = useRouter();
+    const pathname = usePathname();
+    const { user, logout } = useAuthStore();
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [notifications, setNotifications] = useState<StudentNotification[]>([]);
+    const [loadingAlerts, setLoadingAlerts] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+    useEffect(() => {
+        let mounted = true;
+        const loadAlerts = async () => {
+            if (user?.role !== 'student') {
+                setNotifications([]);
+                setUnreadCount(0);
+                return;
+            }
+            setLoadingAlerts(true);
+            try {
+                const response = await studentAPI.getNotifications();
+                const nextAlerts = response.data?.data || [];
+                const nextUnreadCount = response.data?.meta?.unreadCount ?? 0;
+                if (mounted) {
+                    setNotifications(Array.isArray(nextAlerts) ? nextAlerts : []);
+                    setUnreadCount(nextUnreadCount);
+                }
+            }
+            catch (error) {
+                console.error('Failed to load alerts:', error);
+                if (mounted) {
+                    setNotifications([]);
+                    setUnreadCount(0);
+                }
+            }
+            finally {
+                if (mounted) {
+                    setLoadingAlerts(false);
+                }
+            }
+        };
+        loadAlerts();
+        return () => {
+            mounted = false;
+        };
+    }, [pathname, user?.role]);
+    const handleLogout = async () => {
+        try {
+            await authAPI.logout();
         }
-      } catch (error) {
-        console.error('Failed to load alerts:', error);
-        if (mounted) {
-          setNotifications([]);
-          setUnreadCount(0);
+        catch (error) {
+            console.error('Logout error:', error);
         }
-      } finally {
-        if (mounted) {
-          setLoadingAlerts(false);
+        finally {
+            logout();
+            router.replace('/login');
         }
-      }
     };
-
-    loadAlerts();
-
-    return () => {
-      mounted = false;
+    const getInitials = () => {
+        if (!user)
+            return 'U';
+        return `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
     };
-  }, [pathname, user?.role]);
-
-  const handleLogout = async () => {
-    try {
-      await authAPI.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      logout();
-      router.replace('/login');
-    }
-  };
-
-  const getInitials = () => {
-    if (!user) return 'U';
-    return `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
-  };
-
-  const getProfilePath = () => {
-    switch (user?.role) {
-      case 'student':
-        return '/student/profile';
-      case 'porter':
-        return '/porter/profile';
-      case 'admin':
-        return '/admin/profile';
-      default:
-        return '/profile';
-    }
-  };
-
-  const getSettingsPath = () => {
-    switch (user?.role) {
-      case 'student':
-        return '/student/settings';
-      case 'porter':
-        return '/porter/settings';
-      case 'admin':
-        return '/admin/settings';
-      default:
-        return '/settings';
-    }
-  };
-
-  const formatAlertTimestamp = (value?: string) => {
-    if (!value) return 'Now';
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Now';
-
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  };
-
-  const handleNotificationClick = async (notification: StudentNotification) => {
-    try {
-      if (user?.role === 'student' && !notification.read) {
-        await studentAPI.markNotificationsRead({ ids: [notification._id] });
-        setNotifications((current) =>
-          current.map((item) =>
-            item._id === notification._id ? { ...item, read: true } : item
-          )
-        );
-        setUnreadCount((current) => Math.max(0, current - 1));
-      }
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
-    } finally {
-      router.push(notification.destination || '/student/notifications');
-    }
-  };
-
-  const handleMarkAllRead = async () => {
-    try {
-      await studentAPI.markNotificationsRead({ markAll: true });
-      setNotifications((current) => current.map((item) => ({ ...item, read: true })));
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
-    }
-  };
-
-  return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Sidebar for desktop */}
+    const getProfilePath = () => {
+        switch (user?.role) {
+            case 'student':
+                return '/student/profile';
+            case 'porter':
+                return '/porter/profile';
+            case 'admin':
+                return '/admin/profile';
+            default:
+                return '/profile';
+        }
+    };
+    const getSettingsPath = () => {
+        switch (user?.role) {
+            case 'student':
+                return '/student/settings';
+            case 'porter':
+                return '/porter/settings';
+            case 'admin':
+                return '/admin/settings';
+            default:
+                return '/settings';
+        }
+    };
+    const formatAlertTimestamp = (value?: string) => {
+        if (!value)
+            return 'Now';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime()))
+            return 'Now';
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        });
+    };
+    const handleNotificationClick = async (notification: StudentNotification) => {
+        try {
+            if (user?.role === 'student' && !notification.read) {
+                await studentAPI.markNotificationsRead({ ids: [notification._id] });
+                setNotifications((current) => current.map((item) => item._id === notification._id ? { ...item, read: true } : item));
+                setUnreadCount((current) => Math.max(0, current - 1));
+            }
+        }
+        catch (error) {
+            console.error('Failed to mark notification as read:', error);
+        }
+        finally {
+            router.push(notification.destination || '/student/notifications');
+        }
+    };
+    const handleMarkAllRead = async () => {
+        try {
+            await studentAPI.markNotificationsRead({ markAll: true });
+            setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+            setUnreadCount(0);
+        }
+        catch (error) {
+            console.error('Failed to mark all notifications as read:', error);
+        }
+    };
+    return (<div className="flex h-screen overflow-hidden bg-background">
+      
       <aside className="hidden lg:block">
         <AppSidebar />
       </aside>
 
-      {/* Mobile sidebar */}
+      
       <>
-        {/* Overlay */}
-        <div
-          className={`fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity duration-300 ${
-            sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={() => setSidebarOpen(false)}
-        />
+        
+        <div className={`fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}/>
 
-        {/* Sidebar */}
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 lg:hidden transform transition-transform duration-300 ease-in-out ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
+        
+        <aside className={`fixed inset-y-0 left-0 z-50 lg:hidden transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <AppSidebar />
         </aside>
       </>
 
-      {/* Main content area */}
+      
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top header */}
+        
         <header className="flex h-16 items-center border-b bg-card px-4 lg:px-6 shadow-sm">
-          {/* Left: Mobile menu button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="lg:hidden h-9 w-9 p-0 shrink-0 mr-2"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            {sidebarOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
+          
+          <Button variant="ghost" size="sm" className="lg:hidden h-9 w-9 p-0 shrink-0 mr-2" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            {sidebarOpen ? (<X className="h-5 w-5"/>) : (<Menu className="h-5 w-5"/>)}
             <span className="sr-only">Toggle menu</span>
           </Button>
 
-          {/* Center: Search bar */}
+          
           <div className="flex-1 flex justify-center">
             <div className="relative hidden sm:flex w-full max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
-              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"/>
+              <input type="text" placeholder="Search..." className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"/>
             </div>
           </div>
 
-          {/* Right: Theme toggle, bell, user */}
+          
           <div className="flex items-center gap-2 shrink-0">
             <AnimatedThemeToggler />
 
-            {/* Notification bell */}
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 rounded-xl hover:bg-accent">
-                  <Bell className="h-5 w-5 text-muted-foreground" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
-                  )}
+                  <Bell className="h-5 w-5 text-muted-foreground"/>
+                  {unreadCount > 0 && (<span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary"/>)}
                   <span className="sr-only">Notifications</span>
                 </Button>
               </DropdownMenuTrigger>
@@ -275,63 +229,48 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {loadingAlerts ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Bell className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                {loadingAlerts ? (<div className="flex flex-col items-center justify-center py-8 text-center">
+                    <Bell className="h-8 w-8 text-muted-foreground/40 mb-2"/>
                     <p className="text-sm font-medium text-muted-foreground">Loading notifications...</p>
-                  </div>
-                ) : user?.role === 'student' && notifications.length > 0 ? (
-                  <div className="max-h-96 overflow-y-auto">
+                  </div>) : user?.role === 'student' && notifications.length > 0 ? (<div className="max-h-96 overflow-y-auto">
                     {notifications.slice(0, 6).map((notification) => {
-                      const visuals = getAlertVisuals(notification.type);
-                      const Icon = visuals.icon;
-
-                      return (
-                        <DropdownMenuItem
-                          key={notification._id}
-                          className="items-start gap-3 py-3"
-                          onSelect={() => handleNotificationClick(notification)}
-                        >
+                const visuals = getAlertVisuals(notification.type);
+                const Icon = visuals.icon;
+                return (<DropdownMenuItem key={notification._id} className="items-start gap-3 py-3" onSelect={() => handleNotificationClick(notification)}>
                           <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted ${visuals.iconClassName}`}>
-                            <Icon className="h-4 w-4" />
+                            <Icon className="h-4 w-4"/>
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-foreground whitespace-normal leading-5">
                               {notification.message}
                             </p>
                             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                              <span className={`h-2 w-2 rounded-full ${notification.read ? 'bg-muted-foreground/30' : visuals.dotClassName}`} />
+                              <span className={`h-2 w-2 rounded-full ${notification.read ? 'bg-muted-foreground/30' : visuals.dotClassName}`}/>
                               <span>{formatAlertTimestamp(notification.createdAt)}</span>
                             </div>
                           </div>
-                        </DropdownMenuItem>
-                      );
-                    })}
+                        </DropdownMenuItem>);
+            })}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => router.push('/student/notifications')}>
                       View all notifications
                     </DropdownMenuItem>
-                    {unreadCount > 0 && (
-                      <DropdownMenuItem onSelect={handleMarkAllRead}>
+                    {unreadCount > 0 && (<DropdownMenuItem onSelect={handleMarkAllRead}>
                         Mark all as read
-                      </DropdownMenuItem>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Bell className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                      </DropdownMenuItem>)}
+                  </div>) : (<div className="flex flex-col items-center justify-center py-8 text-center">
+                    <Bell className="h-8 w-8 text-muted-foreground/40 mb-2"/>
                     <p className="text-sm font-medium text-muted-foreground">No new notifications</p>
                     <p className="text-xs text-muted-foreground/60 mt-0.5">
                       {user?.role === 'student'
-                        ? "You're all caught up!"
-                        : 'Student notifications are enabled here first.'}
+                ? "You're all caught up!"
+                : 'Student notifications are enabled here first.'}
                     </p>
-                  </div>
-                )}
+                  </div>)}
               </DropdownMenuContent>
             </DropdownMenu>
 
-          {/* User menu */}
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
@@ -369,10 +308,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                className="cursor-pointer text-destructive focus:text-destructive"
-              >
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -380,11 +316,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </header>
 
-        {/* Page content */}
+        
         <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto p-4 lg:p-6">{children}</div>
         </main>
       </div>
-    </div>
-  );
+    </div>);
 }

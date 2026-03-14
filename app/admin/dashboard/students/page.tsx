@@ -1,50 +1,14 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Plus,
-  Users,
-  Building2,
-  Search,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  Download,
-  Upload,
-  Edit,
-  Trash2,
-  Eye,
-  Filter,
-  RefreshCw,
-  KeyRound,
-} from "lucide-react";
+import { Plus, Users, Building2, Search, AlertCircle, CheckCircle, XCircle, Download, Upload, Edit, Trash2, Eye, Filter, RefreshCw, KeyRound, } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -54,205 +18,173 @@ import { DeleteDepartmentDialog } from "@/components/DeleteDepartmentDialog";
 import { AddStudentDialog } from "@/components/AddStudentDialog";
 import { adminAPI } from "@/services/api";
 import { toast } from "sonner";
-
 interface Student {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  matricNo: string;
-  email: string;
-  level: number;
-  paymentStatus: string;
-  reservationStatus?: string;
-  isActive: boolean;
-  college?: {
     _id: string;
-    name: string;
-    code: string;
-  };
-  department?: {
-    _id: string;
-    name: string;
-    code: string;
-  };
-  assignedHostel?: {
-    _id: string;
-    name: string;
-    code: string;
-  };
-  assignedRoom?: {
-    _id: string;
-    roomNumber: string;
-  };
-  invitationHistory?: Array<{
-    action?: string;
-    createdAt?: string;
-  }>;
-}
-
-function StudentsPageContent() {
-  const router = useRouter();
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [levelFilter, setLevelFilter] = useState<string>("all");
-  const [paymentFilter, setPaymentFilter] = useState<string>("all");
-  const [collegeFilter, setCollegeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [viewLoginModalOpen, setViewLoginModalOpen] = useState(false);
-  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
-  const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
-  const [studentToView, setStudentToView] = useState<Student | null>(null);
-  const [studentToReset, setStudentToReset] = useState<Student | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-  const [studentToDelete, setStudentToDelete] = useState<{
-    id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     matricNo: string;
-  } | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  useEffect(() => {
-    loadStudents();
-  }, []);
-
-  const loadStudents = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await adminAPI.getStudents();
-      setStudents(response.data.data || []);
-    } catch (err) {
-      console.error("Failed to load students:", err);
-      setError("Failed to load students. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredStudents = students.filter((student) => {
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch =
-        student.firstName.toLowerCase().includes(query) ||
-        student.lastName.toLowerCase().includes(query) ||
-        student.matricNo.toLowerCase().includes(query) ||
-        student.email.toLowerCase().includes(query) ||
-        student.college?.name.toLowerCase().includes(query) ||
-        student.department?.name.toLowerCase().includes(query);
-      if (!matchesSearch) return false;
-    }
-
-    // Level filter
-    if (levelFilter !== "all" && student.level.toString() !== levelFilter) {
-      return false;
-    }
-
-    // Payment filter
-    if (paymentFilter !== "all" && student.paymentStatus !== paymentFilter) {
-      return false;
-    }
-
-    // College filter
-    if (collegeFilter !== "all" && student.college?._id !== collegeFilter) {
-      return false;
-    }
-
-    // Status filter
-    if (statusFilter !== "all") {
-      if (statusFilter === "active" && !student.isActive) return false;
-      if (statusFilter === "inactive" && student.isActive) return false;
-    }
-
-    return true;
-  });
-
-  // Get unique colleges for filter
-  const colleges = Array.from(
-    new Map(
-      students
+    email: string;
+    level: number;
+    paymentStatus: string;
+    reservationStatus?: string;
+    isActive: boolean;
+    college?: {
+        _id: string;
+        name: string;
+        code: string;
+    };
+    department?: {
+        _id: string;
+        name: string;
+        code: string;
+    };
+    assignedHostel?: {
+        _id: string;
+        name: string;
+        code: string;
+    };
+    assignedRoom?: {
+        _id: string;
+        roomNumber: string;
+    };
+    invitationHistory?: Array<{
+        action?: string;
+        createdAt?: string;
+    }>;
+}
+function StudentsPageContent() {
+    const router = useRouter();
+    const [students, setStudents] = useState<Student[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [levelFilter, setLevelFilter] = useState<string>("all");
+    const [paymentFilter, setPaymentFilter] = useState<string>("all");
+    const [collegeFilter, setCollegeFilter] = useState<string>("all");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [addModalOpen, setAddModalOpen] = useState(false);
+    const [viewLoginModalOpen, setViewLoginModalOpen] = useState(false);
+    const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
+    const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
+    const [studentToView, setStudentToView] = useState<Student | null>(null);
+    const [studentToReset, setStudentToReset] = useState<Student | null>(null);
+    const [newPassword, setNewPassword] = useState("");
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+    const [studentToDelete, setStudentToDelete] = useState<{
+        id: string;
+        name: string;
+        matricNo: string;
+    } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    useEffect(() => {
+        loadStudents();
+    }, []);
+    const loadStudents = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const response = await adminAPI.getStudents();
+            setStudents(response.data.data || []);
+        }
+        catch (err) {
+            console.error("Failed to load students:", err);
+            setError("Failed to load students. Please try again.");
+        }
+        finally {
+            setLoading(false);
+        }
+    };
+    const filteredStudents = students.filter((student) => {
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const matchesSearch = student.firstName.toLowerCase().includes(query) ||
+                student.lastName.toLowerCase().includes(query) ||
+                student.matricNo.toLowerCase().includes(query) ||
+                student.email.toLowerCase().includes(query) ||
+                student.college?.name.toLowerCase().includes(query) ||
+                student.department?.name.toLowerCase().includes(query);
+            if (!matchesSearch)
+                return false;
+        }
+        if (levelFilter !== "all" && student.level.toString() !== levelFilter) {
+            return false;
+        }
+        if (paymentFilter !== "all" && student.paymentStatus !== paymentFilter) {
+            return false;
+        }
+        if (collegeFilter !== "all" && student.college?._id !== collegeFilter) {
+            return false;
+        }
+        if (statusFilter !== "all") {
+            if (statusFilter === "active" && !student.isActive)
+                return false;
+            if (statusFilter === "inactive" && student.isActive)
+                return false;
+        }
+        return true;
+    });
+    const colleges = Array.from(new Map(students
         .filter((s) => s.college)
-        .map((s) => [s.college!._id, s.college!])
-    ).values()
-  );
-
-  // Calculate statistics
-  const stats = {
-    total: students.length,
-    active: students.filter((s) => s.isActive).length,
-    inactive: students.filter((s) => !s.isActive).length,
-    paid: students.filter((s) => s.paymentStatus === "paid").length,
-    pending: students.filter((s) => s.paymentStatus === "pending").length,
-    assigned: students.filter((s) => s.assignedHostel && s.assignedRoom).length,
-    unassigned: students.filter((s) => !s.assignedHostel || !s.assignedRoom).length,
-    pendingInvites: students.filter((s) => s.reservationStatus === "temporary").length,
-    inviteActivity: students.filter((s) => (s.invitationHistory?.length || 0) > 0).length,
-  };
-
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "bg-green-500/10 text-green-600 border-green-500/20";
-      case "pending":
-        return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
-      case "failed":
-        return "bg-red-500/10 text-red-600 border-red-500/20";
-      default:
-        return "bg-gray-500/10 text-gray-600 border-gray-500/20";
-    }
-  };
-
-  const handleEditClick = (student: Student) => {
-    setStudentToEdit(student);
-    setEditModalOpen(true);
-  };
-
-  const handleEditSuccess = async () => {
-    await loadStudents();
-  };
-
-  const handleResetPasswordClick = (student: Student) => {
-    setStudentToReset(student);
-    setNewPassword("");
-    setShowNewPassword(false);
-    setResetPasswordModalOpen(true);
-  };
-
-  const generateRandomPassword = () => {
-    const firstName = studentToReset?.firstName || 'Student';
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    setNewPassword(`${firstName}${randomNum}`);
-  };
-
-  const handleResetPasswordConfirm = async () => {
-    if (!studentToReset || !newPassword) {
-      toast.error("Please enter a new password");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-
-    setIsResetting(true);
-    
-    try {
-      console.log("Resetting password for student:", studentToReset._id);
-      console.log("Using update endpoint with 60s timeout");
-      
-      // Use dedicated password update method with longer timeout
-      await adminAPI.updateStudentPassword(studentToReset._id, newPassword);
-      
-      const credentials = `
+        .map((s) => [s.college!._id, s.college!])).values());
+    const stats = {
+        total: students.length,
+        active: students.filter((s) => s.isActive).length,
+        inactive: students.filter((s) => !s.isActive).length,
+        paid: students.filter((s) => s.paymentStatus === "paid").length,
+        pending: students.filter((s) => s.paymentStatus === "pending").length,
+        assigned: students.filter((s) => s.assignedHostel && s.assignedRoom).length,
+        unassigned: students.filter((s) => !s.assignedHostel || !s.assignedRoom).length,
+        pendingInvites: students.filter((s) => s.reservationStatus === "temporary").length,
+        inviteActivity: students.filter((s) => (s.invitationHistory?.length || 0) > 0).length,
+    };
+    const getPaymentStatusColor = (status: string) => {
+        switch (status) {
+            case "paid":
+                return "bg-green-500/10 text-green-600 border-green-500/20";
+            case "pending":
+                return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
+            case "failed":
+                return "bg-red-500/10 text-red-600 border-red-500/20";
+            default:
+                return "bg-gray-500/10 text-gray-600 border-gray-500/20";
+        }
+    };
+    const handleEditClick = (student: Student) => {
+        setStudentToEdit(student);
+        setEditModalOpen(true);
+    };
+    const handleEditSuccess = async () => {
+        await loadStudents();
+    };
+    const handleResetPasswordClick = (student: Student) => {
+        setStudentToReset(student);
+        setNewPassword("");
+        setShowNewPassword(false);
+        setResetPasswordModalOpen(true);
+    };
+    const generateRandomPassword = () => {
+        const firstName = studentToReset?.firstName || 'Student';
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        setNewPassword(`${firstName}${randomNum}`);
+    };
+    const handleResetPasswordConfirm = async () => {
+        if (!studentToReset || !newPassword) {
+            toast.error("Please enter a new password");
+            return;
+        }
+        if (newPassword.length < 6) {
+            toast.error("Password must be at least 6 characters");
+            return;
+        }
+        setIsResetting(true);
+        try {
+            console.log("Resetting password for student:", studentToReset._id);
+            console.log("Using update endpoint with 60s timeout");
+            await adminAPI.updateStudentPassword(studentToReset._id, newPassword);
+            const credentials = `
 Password Reset Successful!
 
 Student: ${studentToReset.firstName} ${studentToReset.lastName}
@@ -262,28 +194,28 @@ New Password: ${newPassword}
 
 The student can now login with their email/matric number and this new password.
       `.trim();
-      
-      console.log(credentials);
-      alert(credentials);
-      
-      toast.success("Password reset successfully!");
-      setResetPasswordModalOpen(false);
-      setStudentToReset(null);
-      setNewPassword("");
-    } catch (error: unknown) {
-      console.error("Failed to reset password:", error);
-      const err = error as { 
-        response?: { 
-          status?: number;
-          data?: { message?: string; error?: string } 
-        };
-        message?: string;
-        code?: string;
-      };
-      
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        // Show credentials even on timeout - password might still be updating
-        const credentials = `
+            console.log(credentials);
+            alert(credentials);
+            toast.success("Password reset successfully!");
+            setResetPasswordModalOpen(false);
+            setStudentToReset(null);
+            setNewPassword("");
+        }
+        catch (error: unknown) {
+            console.error("Failed to reset password:", error);
+            const err = error as {
+                response?: {
+                    status?: number;
+                    data?: {
+                        message?: string;
+                        error?: string;
+                    };
+                };
+                message?: string;
+                code?: string;
+            };
+            if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+                const credentials = `
 ⚠️ Password Reset - Request Timed Out (60+ seconds)
 
 Student: ${studentToReset.firstName} ${studentToReset.lastName}
@@ -309,65 +241,60 @@ TO FIX THE BACKEND:
 
 Current backend behavior is abnormal - password hashing should take <1 second.
         `.trim();
-        
-        console.warn(credentials);
-        alert(credentials);
-        toast.warning("Backend timeout! Password may still be updating. Wait 3-5 minutes then try logging in.", { duration: 10000 });
-        
-        // Close modal but keep credentials visible
-        setResetPasswordModalOpen(false);
-        setNewPassword("");
-        // Don't clear studentToReset so we can see who we tried to reset
-      } else {
-        toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to reset password. Check backend console.", { duration: 5000 });
-      }
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
-  const handleDeleteClick = (id: string, firstName: string, lastName: string, matricNo: string) => {
-    setStudentToDelete({ id, name: `${firstName} ${lastName}`, matricNo });
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!studentToDelete) return;
-
-    setIsDeleting(true);
-    try {
-      console.log("Force deleting student:", studentToDelete.id);
-      // Use force delete endpoint to bypass pre-remove hooks
-      await adminAPI.forceDeleteStudent(studentToDelete.id);
-      console.log("Student force deleted successfully");
-      toast.success("Student deleted successfully");
-      setDeleteModalOpen(false);
-      setStudentToDelete(null);
-      await loadStudents();
-    } catch (err: any) {
-      console.error("Failed to delete student:", err);
-      if (err.code === 'ECONNABORTED') {
-        toast.error("Delete timeout. The backend is processing - check backend console. The student may have been deleted.", { duration: 8000 });
-      } else {
-        toast.error(err.response?.data?.message || "Failed to delete student");
-      }
-      setError("Failed to delete student. Please try again.");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const clearFilters = () => {
-    setSearchQuery("");
-    setLevelFilter("all");
-    setPaymentFilter("all");
-    setCollegeFilter("all");
-    setStatusFilter("all");
-  };
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
+                console.warn(credentials);
+                alert(credentials);
+                toast.warning("Backend timeout! Password may still be updating. Wait 3-5 minutes then try logging in.", { duration: 10000 });
+                setResetPasswordModalOpen(false);
+                setNewPassword("");
+            }
+            else {
+                toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to reset password. Check backend console.", { duration: 5000 });
+            }
+        }
+        finally {
+            setIsResetting(false);
+        }
+    };
+    const handleDeleteClick = (id: string, firstName: string, lastName: string, matricNo: string) => {
+        setStudentToDelete({ id, name: `${firstName} ${lastName}`, matricNo });
+        setDeleteModalOpen(true);
+    };
+    const handleDeleteConfirm = async () => {
+        if (!studentToDelete)
+            return;
+        setIsDeleting(true);
+        try {
+            console.log("Force deleting student:", studentToDelete.id);
+            await adminAPI.forceDeleteStudent(studentToDelete.id);
+            console.log("Student force deleted successfully");
+            toast.success("Student deleted successfully");
+            setDeleteModalOpen(false);
+            setStudentToDelete(null);
+            await loadStudents();
+        }
+        catch (err: any) {
+            console.error("Failed to delete student:", err);
+            if (err.code === 'ECONNABORTED') {
+                toast.error("Delete timeout. The backend is processing - check backend console. The student may have been deleted.", { duration: 8000 });
+            }
+            else {
+                toast.error(err.response?.data?.message || "Failed to delete student");
+            }
+            setError("Failed to delete student. Please try again.");
+        }
+        finally {
+            setIsDeleting(false);
+        }
+    };
+    const clearFilters = () => {
+        setSearchQuery("");
+        setLevelFilter("all");
+        setPaymentFilter("all");
+        setCollegeFilter("all");
+        setStatusFilter("all");
+    };
+    return (<div className="min-h-screen bg-background">
+      
       <div className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/60">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -378,36 +305,20 @@ Current backend behavior is abnormal - password hashing should take <1 second.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadStudents}
-                disabled={loading}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              <Button variant="outline" size="sm" onClick={loadStudents} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}/>
                 Refresh
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {/* TODO: Implement export */}}
-              >
-                <Download className="w-4 h-4 mr-2" />
+              <Button variant="outline" size="sm" onClick={() => {}}>
+                <Download className="w-4 h-4 mr-2"/>
                 Export
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {/* TODO: Implement bulk upload */}}
-              >
-                <Upload className="w-4 h-4 mr-2" />
+              <Button variant="outline" size="sm" onClick={() => {}}>
+                <Upload className="w-4 h-4 mr-2"/>
                 Import
               </Button>
-              <Button
-                size="sm"
-                onClick={() => setAddModalOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
+              <Button size="sm" onClick={() => setAddModalOpen(true)}>
+                <Plus className="w-4 h-4 mr-2"/>
                 Add Student
               </Button>
             </div>
@@ -416,12 +327,12 @@ Current backend behavior is abnormal - password hashing should take <1 second.
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Statistics Cards */}
+        
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <Card className="p-4 border shadow-none hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-500/10 rounded-lg">
-                <Users className="w-5 h-5 text-blue-600" />
+                <Users className="w-5 h-5 text-blue-600"/>
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.total}</p>
@@ -433,7 +344,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           <Card className="p-4 border shadow-none hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-500/10 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
+                <CheckCircle className="w-5 h-5 text-green-600"/>
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.active}</p>
@@ -445,7 +356,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           <Card className="p-4 border shadow-none hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-500/10 rounded-lg">
-                <XCircle className="w-5 h-5 text-gray-600" />
+                <XCircle className="w-5 h-5 text-gray-600"/>
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.inactive}</p>
@@ -457,7 +368,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           <Card className="p-4 border shadow-none hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-500/10 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
+                <CheckCircle className="w-5 h-5 text-green-600"/>
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.paid}</p>
@@ -469,7 +380,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           <Card className="p-4 border shadow-none hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-yellow-500/10 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-yellow-600" />
+                <AlertCircle className="w-5 h-5 text-yellow-600"/>
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
@@ -481,7 +392,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           <Card className="p-4 border shadow-none hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-500/10 rounded-lg">
-                <Building2 className="w-5 h-5 text-blue-600" />
+                <Building2 className="w-5 h-5 text-blue-600"/>
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.assigned}</p>
@@ -493,7 +404,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           <Card className="p-4 border shadow-none hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-500/10 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-orange-600" />
+                <AlertCircle className="w-5 h-5 text-orange-600"/>
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.unassigned}</p>
@@ -522,38 +433,31 @@ Current backend behavior is abnormal - password hashing should take <1 second.
           </div>
         </Card>
 
-        {/* Filters */}
+        
         <Card className="p-4 border shadow-none">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-muted-foreground" />
+                <Filter className="w-4 h-4 text-muted-foreground"/>
                 <span className="text-sm font-medium">Filters</span>
               </div>
-              {(searchQuery || levelFilter !== "all" || paymentFilter !== "all" || 
-                collegeFilter !== "all" || statusFilter !== "all") && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
+              {(searchQuery || levelFilter !== "all" || paymentFilter !== "all" ||
+            collegeFilter !== "all" || statusFilter !== "all") && (<Button variant="ghost" size="sm" onClick={clearFilters}>
                   Clear All
-                </Button>
-              )}
+                </Button>)}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-              {/* Search */}
+              
               <div className="relative lg:col-span-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, matric no, email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"/>
+                <Input placeholder="Search by name, matric no, email..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9"/>
               </div>
 
-              {/* Level Filter */}
+              
               <Select value={levelFilter} onValueChange={setLevelFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All Levels" />
+                  <SelectValue placeholder="All Levels"/>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
@@ -566,10 +470,10 @@ Current backend behavior is abnormal - password hashing should take <1 second.
                 </SelectContent>
               </Select>
 
-              {/* Payment Filter */}
+              
               <Select value={paymentFilter} onValueChange={setPaymentFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Payment Status" />
+                  <SelectValue placeholder="Payment Status"/>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Payments</SelectItem>
@@ -579,10 +483,10 @@ Current backend behavior is abnormal - password hashing should take <1 second.
                 </SelectContent>
               </Select>
 
-              {/* Status Filter */}
+              
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Status" />
+                  <SelectValue placeholder="Status"/>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
@@ -592,71 +496,54 @@ Current backend behavior is abnormal - password hashing should take <1 second.
               </Select>
             </div>
 
-            {/* College Filter - Second Row if needed */}
-            {colleges.length > 0 && (
-              <Select value={collegeFilter} onValueChange={setCollegeFilter}>
+            
+            {colleges.length > 0 && (<Select value={collegeFilter} onValueChange={setCollegeFilter}>
                 <SelectTrigger className="max-w-xs">
-                  <SelectValue placeholder="All Colleges" />
+                  <SelectValue placeholder="All Colleges"/>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Colleges</SelectItem>
-                  {colleges.map((college) => (
-                    <SelectItem key={college._id} value={college._id}>
+                  {colleges.map((college) => (<SelectItem key={college._id} value={college._id}>
                       {college.code} - {college.name}
-                    </SelectItem>
-                  ))}
+                    </SelectItem>))}
                 </SelectContent>
-              </Select>
-            )}
+              </Select>)}
           </div>
         </Card>
 
-        {/* Error Message */}
-        {error && (
-          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+        
+        {error && (<div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5"/>
             <div className="flex-1">
               <p className="text-sm font-medium text-destructive">Error</p>
               <p className="text-sm text-destructive/80">{error}</p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setError(null)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setError(null)}>
               Dismiss
             </Button>
-          </div>
-        )}
+          </div>)}
 
-        {/* Students Table */}
+        
         <Card className="border shadow-none">
           <div className="overflow-x-auto">
-            {loading ? (
-              <div className="p-12 text-center">
-                <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3" />
+            {loading ? (<div className="p-12 text-center">
+                <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3"/>
                 <p className="text-sm text-muted-foreground">Loading students...</p>
-              </div>
-            ) : filteredStudents.length === 0 ? (
-              <div className="p-12 text-center">
-                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+              </div>) : filteredStudents.length === 0 ? (<div className="p-12 text-center">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50"/>
                 <h3 className="text-lg font-semibold text-foreground mb-2">No students found</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  {searchQuery || levelFilter !== "all" || paymentFilter !== "all" || 
-                   collegeFilter !== "all" || statusFilter !== "all"
-                    ? "Try adjusting your filters to see more results"
-                    : "Get started by adding your first student"}
+                  {searchQuery || levelFilter !== "all" || paymentFilter !== "all" ||
+                collegeFilter !== "all" || statusFilter !== "all"
+                ? "Try adjusting your filters to see more results"
+                : "Get started by adding your first student"}
                 </p>
-                {!searchQuery && levelFilter === "all" && paymentFilter === "all" && 
-                 collegeFilter === "all" && statusFilter === "all" && (
-                  <Button onClick={() => router.push("/admin/dashboard/students/create")}>
-                    <Plus className="w-4 h-4 mr-2" />
+                {!searchQuery && levelFilter === "all" && paymentFilter === "all" &&
+                collegeFilter === "all" && statusFilter === "all" && (<Button onClick={() => router.push("/admin/dashboard/students/create")}>
+                    <Plus className="w-4 h-4 mr-2"/>
                     Add First Student
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <>
+                  </Button>)}
+              </div>) : (<>
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -674,8 +561,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredStudents.map((student, index) => (
-                      <TableRow key={student._id} className="hover:bg-muted/30">
+                    {filteredStudents.map((student, index) => (<TableRow key={student._id} className="hover:bg-muted/30">
                         <TableCell className="font-medium text-muted-foreground">
                           {index + 1}
                         </TableCell>
@@ -714,144 +600,80 @@ Current backend behavior is abnormal - password hashing should take <1 second.
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge
-                            variant="outline"
-                            className={`text-xs font-medium ${getPaymentStatusColor(
-                              student.paymentStatus
-                            )}`}
-                          >
+                          <Badge variant="outline" className={`text-xs font-medium ${getPaymentStatusColor(student.paymentStatus)}`}>
                             {student.paymentStatus}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-center hidden xl:table-cell">
-                          {student.assignedHostel ? (
-                            <div className="flex flex-col">
+                          {student.assignedHostel ? (<div className="flex flex-col">
                               {(() => {
-                                const latestInvitation = student.invitationHistory?.length
-                                  ? student.invitationHistory[student.invitationHistory.length - 1]
-                                  : null;
-                                return (
-                                  <>
+                        const latestInvitation = student.invitationHistory?.length
+                            ? student.invitationHistory[student.invitationHistory.length - 1]
+                            : null;
+                        return (<>
                               <span className="font-medium">{student.assignedHostel.name}</span>
                               <span className="text-xs text-muted-foreground">
                                 Room {student.assignedRoom?.roomNumber || "-"}
                               </span>
-                              {student.invitationHistory?.length ? (
-                                <>
+                              {student.invitationHistory?.length ? (<>
                                   <span className="text-xs text-muted-foreground">
                                     Invites: {student.invitationHistory.length}
                                   </span>
-                                  {latestInvitation?.action ? (
-                                    <span className="text-xs text-muted-foreground">
+                                  {latestInvitation?.action ? (<span className="text-xs text-muted-foreground">
                                       Latest: {latestInvitation.action}
-                                    </span>
-                                  ) : null}
-                                </>
-                              ) : null}
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                                    </span>) : null}
+                                </>) : null}
+                                  </>);
+                    })()}
+                            </div>) : (<span className="text-muted-foreground">-</span>)}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge
-                            variant={student.isActive ? "default" : "secondary"}
-                            className="text-xs"
-                          >
+                          <Badge variant={student.isActive ? "default" : "secondary"} className="text-xs">
                             {student.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-blue-500/10 hover:text-blue-600"
-                              onClick={() => {
-                                setStudentToView(student);
-                                setViewLoginModalOpen(true);
-                              }}
-                              aria-label="View Login Details"
-                              title="View Login Details"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-blue-500/10 hover:text-blue-600" onClick={() => {
+                    setStudentToView(student);
+                    setViewLoginModalOpen(true);
+                }} aria-label="View Login Details" title="View Login Details">
+                              <Eye className="w-3.5 h-3.5"/>
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-                              onClick={() => handleEditClick(student)}
-                              aria-label="Edit Student"
-                              title="Edit Student"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary" onClick={() => handleEditClick(student)} aria-label="Edit Student" title="Edit Student">
+                              <Edit className="w-3.5 h-3.5"/>
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-orange-500/10 hover:text-orange-600"
-                              onClick={() => handleResetPasswordClick(student)}
-                              aria-label="Reset Password"
-                              title="Reset Password"
-                            >
-                              <KeyRound className="w-3.5 h-3.5" />
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-orange-500/10 hover:text-orange-600" onClick={() => handleResetPasswordClick(student)} aria-label="Reset Password" title="Reset Password">
+                              <KeyRound className="w-3.5 h-3.5"/>
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() =>
-                                handleDeleteClick(
-                                  student._id,
-                                  student.firstName,
-                                  student.lastName,
-                                  student.matricNo
-                                )
-                              }
-                              aria-label="Delete Student"
-                              title="Delete Student"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDeleteClick(student._id, student.firstName, student.lastName, student.matricNo)} aria-label="Delete Student" title="Delete Student">
+                              <Trash2 className="w-3.5 h-3.5"/>
                             </Button>
                           </div>
                         </TableCell>
-                      </TableRow>
-                    ))}
+                      </TableRow>))}
                   </TableBody>
                 </Table>
 
-                {/* Results Summary */}
+                
                 <div className="px-4 py-3 border-t bg-muted/20">
                   <p className="text-sm text-muted-foreground">
                     Showing <span className="font-medium text-foreground">{filteredStudents.length}</span> of{" "}
                     <span className="font-medium text-foreground">{students.length}</span> students
                   </p>
                 </div>
-              </>
-            )}
+              </>)}
           </div>
         </Card>
       </div>
 
-      {/* Edit Student Modal */}
-      <EditStudentDialog
-        open={editModalOpen}
-        onOpenChange={setEditModalOpen}
-        student={studentToEdit}
-        onSuccess={handleEditSuccess}
-      />
+      
+      <EditStudentDialog open={editModalOpen} onOpenChange={setEditModalOpen} student={studentToEdit} onSuccess={handleEditSuccess}/>
 
-      {/* Add Student Modal */}
-      <AddStudentDialog
-        open={addModalOpen}
-        onOpenChange={setAddModalOpen}
-        onSuccess={loadStudents}
-      />
+      
+      <AddStudentDialog open={addModalOpen} onOpenChange={setAddModalOpen} onSuccess={loadStudents}/>
 
-      {/* View Login Details Modal */}
+      
       <Dialog open={viewLoginModalOpen} onOpenChange={setViewLoginModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -861,8 +683,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
             </DialogDescription>
           </DialogHeader>
           
-          {studentToView && (
-            <div className="space-y-4">
+          {studentToView && (<div className="space-y-4">
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-3">
                 <div>
                   <Label className="text-xs text-muted-foreground">Student Name</Label>
@@ -896,40 +717,31 @@ Current backend behavior is abnormal - password hashing should take <1 second.
               </div>
 
               <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertCircle className="h-4 w-4 text-amber-600"/>
                 <AlertDescription className="text-amber-800 dark:text-amber-200 text-xs">
                   <strong>Note:</strong> For security reasons, passwords are not displayed. If the student has forgotten their password, use the password reset feature.
                 </AlertDescription>
               </Alert>
 
               <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    navigator.clipboard.writeText(studentToView.email);
-                    toast.success('Email copied to clipboard');
-                  }}
-                >
+                <Button variant="outline" className="flex-1" onClick={() => {
+                navigator.clipboard.writeText(studentToView.email);
+                toast.success('Email copied to clipboard');
+            }}>
                   Copy Email
                 </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    navigator.clipboard.writeText(studentToView.matricNo);
-                    toast.success('Matric number copied to clipboard');
-                  }}
-                >
+                <Button variant="outline" className="flex-1" onClick={() => {
+                navigator.clipboard.writeText(studentToView.matricNo);
+                toast.success('Matric number copied to clipboard');
+            }}>
                   Copy Matric No
                 </Button>
               </div>
-            </div>
-          )}
+            </div>)}
         </DialogContent>
       </Dialog>
 
-      {/* Reset Password Modal */}
+      
       <Dialog open={resetPasswordModalOpen} onOpenChange={setResetPasswordModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -939,8 +751,7 @@ Current backend behavior is abnormal - password hashing should take <1 second.
             </DialogDescription>
           </DialogHeader>
           
-          {studentToReset && (
-            <div className="space-y-4">
+          {studentToReset && (<div className="space-y-4">
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Student</Label>
@@ -955,90 +766,49 @@ Current backend behavior is abnormal - password hashing should take <1 second.
                 </Label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <Input
-                      id="newPassword"
-                      type={showNewPassword ? "text" : "password"}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Enter new password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showNewPassword ? (
-                        <XCircle className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                    <Input id="newPassword" type={showNewPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password"/>
+                    <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showNewPassword ? (<XCircle className="h-4 w-4"/>) : (<Eye className="h-4 w-4"/>)}
                     </button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={generateRandomPassword}
-                  >
-                    <RefreshCw className="h-4 w-4" />
+                  <Button type="button" variant="outline" onClick={generateRandomPassword}>
+                    <RefreshCw className="h-4 w-4"/>
                   </Button>
                 </div>
-                {newPassword && newPassword.length < 6 && (
-                  <p className="text-xs text-red-500">Password must be at least 6 characters</p>
-                )}
+                {newPassword && newPassword.length < 6 && (<p className="text-xs text-red-500">Password must be at least 6 characters</p>)}
               </div>
 
               <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertCircle className="h-4 w-4 text-amber-600"/>
                 <AlertDescription className="text-amber-800 dark:text-amber-200 text-xs">
                   <strong>Important:</strong> Make sure to save the new password and share it with the student. They will need it to login.
                 </AlertDescription>
               </Alert>
 
               <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setResetPasswordModalOpen(false);
-                    setNewPassword("");
-                    setStudentToReset(null);
-                  }}
-                  disabled={isResetting}
-                >
+                <Button variant="outline" className="flex-1" onClick={() => {
+                setResetPasswordModalOpen(false);
+                setNewPassword("");
+                setStudentToReset(null);
+            }} disabled={isResetting}>
                   Cancel
                 </Button>
-                <Button
-                  className="flex-1"
-                  onClick={handleResetPasswordConfirm}
-                  disabled={isResetting || !newPassword || newPassword.length < 6}
-                >
+                <Button className="flex-1" onClick={handleResetPasswordConfirm} disabled={isResetting || !newPassword || newPassword.length < 6}>
                   {isResetting ? "Resetting..." : "Reset Password"}
                 </Button>
               </div>
-            </div>
-          )}
+            </div>)}
         </DialogContent>
       </Dialog>
 
-      {/* Delete Student Modal */}
-      <DeleteDepartmentDialog
-        open={deleteModalOpen}
-        onOpenChange={setDeleteModalOpen}
-        onConfirm={handleDeleteConfirm}
-        departmentName={studentToDelete?.name}
-        departmentCode={studentToDelete?.matricNo}
-        isDeleting={isDeleting}
-      />
-    </div>
-  );
+      
+      <DeleteDepartmentDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen} onConfirm={handleDeleteConfirm} departmentName={studentToDelete?.name} departmentCode={studentToDelete?.matricNo} isDeleting={isDeleting}/>
+    </div>);
 }
-
 export default function StudentsPage() {
-  return (
-    <ProtectedRoute allowedRoles={["admin"]}>
+    return (<ProtectedRoute allowedRoles={["admin"]}>
       <DashboardLayout>
         <StudentsPageContent />
       </DashboardLayout>
-    </ProtectedRoute>
-  );
+    </ProtectedRoute>);
 }
