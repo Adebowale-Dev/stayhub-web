@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Building2 } from 'lucide-react';
 import ResetPasswordForm from '@/components/auth/ResetPasswordForm';
 export default function ResetPasswordPage() {
@@ -22,7 +23,9 @@ export default function ResetPasswordPage() {
             </p>
           </div>
 
-          <ResetPasswordForm />
+          <Suspense fallback={<div className="text-sm text-muted-foreground">Loading reset form...</div>}>
+            <ResetPasswordForm />
+          </Suspense>
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground/50">

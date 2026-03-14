@@ -87,20 +87,6 @@ export default function BrowseHostelsPage() {
             setLoading(false);
         }
     };
-    const filteredHostels = hostels.filter((hostel) => {
-        const matchesSearch = hostel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            hostel.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            hostel.location.toLowerCase().includes(searchQuery.toLowerCase());
-        let matchesStudentGender = true;
-        if (studentGender) {
-            matchesStudentGender = hostel.gender === studentGender || hostel.gender === 'mixed';
-        }
-        const hasAvailability = getAvailableCapacity(hostel) > 0;
-        const matchesAvailability = availabilityFilter === 'all' ||
-            (availabilityFilter === 'available' && hasAvailability) ||
-            (availabilityFilter === 'full' && !hasAvailability);
-        return matchesSearch && matchesStudentGender && matchesAvailability && hostel.isActive;
-    });
     const getAvailableCapacity = (hostel: Hostel): number => {
         const total = hostel.totalCapacity ?? 0;
         const occupied = hostel.currentOccupants ??
@@ -115,6 +101,20 @@ export default function BrowseHostelsPage() {
         }
         return hostel.availableCapacity ?? hostel.availableRooms ?? 0;
     };
+    const filteredHostels = hostels.filter((hostel) => {
+        const matchesSearch = hostel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            hostel.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            hostel.location.toLowerCase().includes(searchQuery.toLowerCase());
+        let matchesStudentGender = true;
+        if (studentGender) {
+            matchesStudentGender = hostel.gender === studentGender || hostel.gender === 'mixed';
+        }
+        const hasAvailability = getAvailableCapacity(hostel) > 0;
+        const matchesAvailability = availabilityFilter === 'all' ||
+            (availabilityFilter === 'available' && hasAvailability) ||
+            (availabilityFilter === 'full' && !hasAvailability);
+        return matchesSearch && matchesStudentGender && matchesAvailability && hostel.isActive;
+    });
     const getOccupancyColor = (rate: number) => {
         if (rate >= 90)
             return 'text-red-600';

@@ -22,6 +22,21 @@ interface StudentNotification {
     destination?: string;
     read?: boolean;
 }
+interface NotificationCacheEntry {
+    notifications: StudentNotification[];
+    unreadCount: number;
+    fetchedAt: number;
+}
+const NOTIFICATION_CACHE_TTL_MS = 10000;
+let notificationCache: NotificationCacheEntry | null = null;
+const isCacheFresh = (entry: NotificationCacheEntry | null) => Boolean(entry && Date.now() - entry.fetchedAt < NOTIFICATION_CACHE_TTL_MS);
+const updateNotificationCache = (notifications: StudentNotification[], unreadCount: number) => {
+    notificationCache = {
+        notifications,
+        unreadCount,
+        fetchedAt: Date.now(),
+    };
+};
 const getAlertVisuals = (type: StudentNotification['type']) => {
     switch (type) {
         case 'success':
@@ -66,21 +81,45 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 setUnreadCount(0);
                 return;
             }
+            if (isCacheFresh(notificationCache)) {
+                setNotifications(notificationCache?.notifications || []);
+                setUnreadCount(notificationCache?.unreadCount || 0);
+                return;
+            }
             setLoadingAlerts(true);
             try {
                 const response = await studentAPI.getNotifications();
                 const nextAlerts = response.data?.data || [];
                 const nextUnreadCount = response.data?.meta?.unreadCount ?? 0;
+                const normalizedAlerts = Array.isArray(nextAlerts) ? nextAlerts : [];
+                updateNotificationCache(normalizedAlerts, nextUnreadCount);
                 if (mounted) {
-                    setNotifications(Array.isArray(nextAlerts) ? nextAlerts : []);
+                    setNotifications(normalizedAlerts);
                     setUnreadCount(nextUnreadCount);
                 }
             }
-            catch (error) {
+            catch (error: unknown) {
+                if (
+                    typeof error === 'object' &&
+                    error !== null &&
+                    'response' in error &&
+                    typeof (error as { response?: { status?: number } }).response === 'object' &&
+                    (error as { response?: { status?: number } }).response !== null &&
+                    'status' in (error as { response?: { status?: number } }).response!
+                ) {
+                    const status = (error as { response?: { status?: number } }).response?.status;
+                    if (status === 429) {
+                        if (mounted && notificationCache) {
+                            setNotifications(notificationCache.notifications);
+                            setUnreadCount(notificationCache.unreadCount);
+                        }
+                        return;
+                    }
+                }
                 console.error('Failed to load alerts:', error);
                 if (mounted) {
-                    setNotifications([]);
-                    setUnreadCount(0);
+                    setNotifications(notificationCache?.notifications || []);
+                    setUnreadCount(notificationCache?.unreadCount || 0);
                 }
             }
             finally {
@@ -152,7 +191,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         try {
             if (user?.role === 'student' && !notification.read) {
                 await studentAPI.markNotificationsRead({ ids: [notification._id] });
-                setNotifications((current) => current.map((item) => item._id === notification._id ? { ...item, read: true } : item));
+                setNotifications((current) => {
+                    const next = current.map((item) => item._id === notification._id ? { ...item, read: true } : item);
+                    updateNotificationCache(next, next.filter((item) => !item.read).length);
+                    return next;
+                });
                 setUnreadCount((current) => Math.max(0, current - 1));
             }
         }
@@ -166,7 +209,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const handleMarkAllRead = async () => {
         try {
             await studentAPI.markNotificationsRead({ markAll: true });
-            setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+            setNotifications((current) => {
+                const next = current.map((item) => ({ ...item, read: true }));
+                updateNotificationCache(next, 0);
+                return next;
+            });
             setUnreadCount(0);
         }
         catch (error) {

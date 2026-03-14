@@ -94,6 +94,11 @@ export const studentAPI = {
     getHostels: () => api.get('/student/hostels'),
     getRooms: (hostelId: string) => api.get(`/student/hostels/${hostelId}/rooms`),
     getBunks: (roomId: string) => api.get(`/student/rooms/${roomId}/bunks`),
+    previewReservationInvite: (payload: {
+        roomId: string;
+        matricNo: string;
+        hostelId?: string;
+    }) => api.post('/student/reservation/invite-preview', payload),
     reserveRoom: (data: Record<string, unknown>) => api.post('/student/reservations', data),
     getReservation: () => api.get('/student/reservation'),
     respondToInvitation: (action: 'approve' | 'reject') => api.post('/student/reservation/respond', { action }),
@@ -107,10 +112,11 @@ export const porterAPI = {
     releaseExpired: () => api.post('/porter/release-expired'),
 };
 export const paymentAPI = {
-    getAmount: () => api.get('/admin/payment/amount'),
+    getAmount: () => api.get('/student/payment/amount'),
     initialize: (amount: number) => api.post('/student/payment/initialize', { amount }),
     getStatus: () => api.get('/student/payment/status'),
     verify: (reference: string) => api.get(`/student/payment/verify/${reference}`),
     verifyWithCode: (paymentCode: string) => api.post('/student/payment/verify-code', { paymentCode }),
+    resendCode: () => api.post('/student/payment/resend-code'),
 };
 export default api;

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -59,6 +59,23 @@ interface Reservation {
     status?: 'pending' | 'temporary' | 'confirmed' | 'checked-in' | 'checked_in' | 'cancelled' | 'expired';
     reservationStatus?: string;
     approvalRequired?: boolean;
+    inviteTracker?: Array<{
+        student?: {
+            _id?: string;
+            firstName?: string;
+            lastName?: string;
+            matricNo?: string;
+            matricNumber?: string;
+            email?: string;
+        } | null;
+        status?: 'sent' | 'seen' | 'approved' | 'rejected' | 'expired';
+        label?: string;
+        action?: 'invited' | 'viewed' | 'approved' | 'rejected' | 'expired';
+        lastUpdatedAt?: string | null;
+        message?: string;
+        requiresPaymentBeforeApproval?: boolean;
+        emailMasked?: string | null;
+    }>;
     reservedAt?: string;
     expiresAt?: string;
     checkedInAt?: string;
@@ -68,7 +85,7 @@ interface Reservation {
 }
 interface InvitationHistoryEntry {
     _id?: string;
-    action: 'invited' | 'approved' | 'rejected' | 'expired';
+    action: 'invited' | 'viewed' | 'approved' | 'rejected' | 'expired';
     role: 'inviter' | 'invitee';
     notes?: string | null;
     createdAt?: string;
@@ -90,7 +107,7 @@ interface InvitationHistoryEntry {
         matricNumber?: string;
     } | null;
 }
-export default function ReservationPage() {
+function ReservationPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [reservation, setReservation] = useState<Reservation | null>(null);
@@ -100,6 +117,10 @@ export default function ReservationPage() {
     const [studentProfile, setStudentProfile] = useState<any>(null);
     const [paymentStatus, setPaymentStatus] = useState<string>('pending');
     const [actionLoading, setActionLoading] = useState<'approve' | 'reject' | null>(null);
+    const [actionFeedback, setActionFeedback] = useState<{
+        type: 'success' | 'info';
+        message: string;
+    } | null>(null);
     const { user } = useAuthStore();
     const invitationActionRef = useRef<HTMLDivElement | null>(null);
     const historyRef = useRef<HTMLDivElement | null>(null);
@@ -125,31 +146,43 @@ export default function ReservationPage() {
         }, 150);
         return () => window.clearTimeout(timer);
     }, [focusSection, invitationHistory.length, loading, reservation?.status]);
+    const loadInvitationHistory = async () => {
+        const historyResponse = await studentAPI.getInvitationHistory().catch((historyError) => {
+            console.error('Failed to load invitation history:', historyError);
+            return null;
+        });
+        const historyData = historyResponse?.data?.data || historyResponse?.data || [];
+        setInvitationHistory(Array.isArray(historyData) ? historyData : []);
+    };
     const fetchStudentData = async (retryCount = 0) => {
         setLoading(true);
         setError(null);
         try {
-            const historyPromise = studentAPI.getInvitationHistory().catch((historyError) => {
-                console.error('Failed to load invitation history:', historyError);
-                return null;
+            const historyPromise = loadInvitationHistory();
+            const reservationResponse = await studentAPI.getReservation().catch(async (reservationError: any) => {
+                if (reservationError?.response?.status === 404) {
+                    setReservation(null);
+                    setError('No reservation found');
+                    await historyPromise;
+                    return null;
+                }
+                throw reservationError;
             });
-            const reservationResponse = await studentAPI.getReservation();
+            if (!reservationResponse) {
+                return;
+            }
             const reservationData = reservationResponse.data.data || reservationResponse.data;
             if (!reservationData || reservationData.reservationStatus === 'none' || reservationData.reservationStatus === 'no-reservation') {
                 setReservation(null);
                 setError('No reservation found');
-                const historyResponse = await historyPromise;
-                const historyData = historyResponse?.data?.data || historyResponse?.data || [];
-                setInvitationHistory(Array.isArray(historyData) ? historyData : []);
+                await historyPromise;
                 return;
             }
             await new Promise(resolve => setTimeout(resolve, 500));
             const dashboardResponse = await studentAPI.getDashboard();
             const dashboardData = dashboardResponse.data.data || dashboardResponse.data;
             const profile = dashboardData?.profile || dashboardData?.student;
-            const historyResponse = await historyPromise;
-            const historyData = historyResponse?.data?.data || historyResponse?.data || [];
-            setInvitationHistory(Array.isArray(historyData) ? historyData : []);
+            await historyPromise;
             setStudentProfile(profile);
             setPaymentStatus(dashboardData?.paymentStatus || 'pending');
             const rawHostel = reservationData.hostel ||
@@ -227,12 +260,7 @@ export default function ReservationPage() {
                 return fetchStudentData(retryCount + 1);
             }
             if (err.response?.status === 404) {
-                const historyResponse = await studentAPI.getInvitationHistory().catch((historyError) => {
-                    console.error('Failed to load invitation history:', historyError);
-                    return null;
-                });
-                const historyData = historyResponse?.data?.data || historyResponse?.data || [];
-                setInvitationHistory(Array.isArray(historyData) ? historyData : []);
+                await loadInvitationHistory();
                 setError('No reservation found');
             }
             else if (err.response?.status === 429) {
@@ -291,6 +319,16 @@ export default function ReservationPage() {
             if (action === 'reject') {
                 setReservation(null);
                 setError('No reservation found');
+                setActionFeedback({
+                    type: 'info',
+                    message: 'Invitation rejected. The room space has been released for another student.',
+                });
+            }
+            else {
+                setActionFeedback({
+                    type: 'success',
+                    message: 'Room approved successfully. Your bed space is now confirmed. Proceed to porter check-in when the check-in window opens. Your inviter has been notified.',
+                });
             }
         }
         catch (err: any) {
@@ -316,6 +354,13 @@ export default function ReservationPage() {
         return entry.hostelName || 'Reserved room';
     };
     const getInvitationHistoryTone = (entry: InvitationHistoryEntry) => {
+        if (entry.action === 'viewed') {
+            return {
+                icon: Info,
+                badgeVariant: 'outline' as const,
+                badgeLabel: 'Seen',
+            };
+        }
         if (entry.action === 'approved') {
             return {
                 icon: CheckCircle2,
@@ -351,6 +396,12 @@ export default function ReservationPage() {
         if (entry.action === 'invited' && entry.role === 'invitee') {
             return `${otherPerson} reserved a room for you`;
         }
+        if (entry.action === 'viewed' && entry.role === 'inviter') {
+            return `${otherPerson} opened your invitation`;
+        }
+        if (entry.action === 'viewed' && entry.role === 'invitee') {
+            return 'You opened the reserved room invitation';
+        }
         if (entry.action === 'approved' && entry.role === 'inviter') {
             return `${otherPerson} approved your invitation`;
         }
@@ -376,7 +427,94 @@ export default function ReservationPage() {
         if (entry.bunkNumber) {
             parts.push(`Bunk ${entry.bunkNumber}`);
         }
-        return parts.filter(Boolean).join(' • ');
+        return parts.filter(Boolean).join(' - ');
+    };
+    const getInviteTrackerTone = (status?: 'sent' | 'seen' | 'approved' | 'rejected' | 'expired') => {
+        if (status === 'seen') {
+            return {
+                icon: Info,
+                badgeVariant: 'outline' as const,
+                badgeLabel: 'Seen',
+            };
+        }
+        if (status === 'approved') {
+            return {
+                icon: CheckCircle2,
+                badgeVariant: 'default' as const,
+                badgeLabel: 'Approved',
+            };
+        }
+        if (status === 'rejected') {
+            return {
+                icon: XCircle,
+                badgeVariant: 'destructive' as const,
+                badgeLabel: 'Rejected',
+            };
+        }
+        if (status === 'expired') {
+            return {
+                icon: AlertCircle,
+                badgeVariant: 'outline' as const,
+                badgeLabel: 'Expired',
+            };
+        }
+        return {
+            icon: Clock,
+            badgeVariant: 'secondary' as const,
+            badgeLabel: 'Sent',
+        };
+    };
+    const renderInviteTrackerCard = () => {
+        const tracker = reservation?.inviteTracker || [];
+        if (tracker.length === 0) {
+            return null;
+        }
+        return (<Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5"/>
+          Friend Invite Tracker
+        </CardTitle>
+        <CardDescription>
+          Follow each reserved friend from the moment the invite is sent until they approve, reject, or let it expire.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {tracker.map((item, index) => {
+                const tone = getInviteTrackerTone(item.status);
+                const Icon = tone.icon;
+                const studentName = getInvitationParticipantName(item.student, 'Invited friend');
+                return (<div key={item.student?._id || `${item.status}-${index}`} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full bg-background p-2">
+                    <Icon className="h-4 w-4 text-primary"/>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">{studentName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(item.student?.matricNo || item.student?.matricNumber || 'Matric unavailable')}
+                      {item.emailMasked ? ` - ${item.emailMasked}` : ''}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.message || 'Invite created and waiting for a response.'}
+                    </p>
+                    {item.lastUpdatedAt && (<p className="text-xs text-muted-foreground">
+                        Updated {formatDate(item.lastUpdatedAt)}
+                      </p>)}
+                    {item.requiresPaymentBeforeApproval && item.status !== 'approved' && item.status !== 'rejected' && item.status !== 'expired' && (<p className="text-xs text-muted-foreground">
+                        Payment is still pending for this friend, so approval can only happen after payment.
+                      </p>)}
+                  </div>
+                </div>
+                <Badge variant={tone.badgeVariant} className="w-fit">
+                  {tone.badgeLabel}
+                </Badge>
+              </div>
+            </div>);
+            })}
+      </CardContent>
+    </Card>);
     };
     const renderInvitationHistoryCard = () => (<div ref={historyRef}>
       <Card className={focusSection === 'history' ? 'border-primary/60 ring-2 ring-primary/15' : undefined}>
@@ -421,6 +559,7 @@ export default function ReservationPage() {
       </Card>
     </div>);
     const shouldShowHistoryCard = invitationHistory.length > 0 || focusSection === 'history';
+    const isFriendReservedRoom = Boolean(reservation?.reservedBy?._id && reservation?.reservedBy?._id !== user?._id);
     if (loading) {
         return (<ProtectedRoute allowedRoles={['student']}>
         <DashboardLayout>
@@ -449,6 +588,13 @@ export default function ReservationPage() {
                 {focusSection === 'history'
                 ? 'You opened this page from email. Your latest invitation history is highlighted below.'
                 : 'You opened this page from email. Your invitation action section is highlighted below.'}
+              </AlertDescription>
+            </Alert>)}
+
+          {actionFeedback && (<Alert variant={actionFeedback.type === 'success' ? 'default' : undefined}>
+              <Info className="h-4 w-4"/>
+              <AlertDescription>
+                {actionFeedback.message}
               </AlertDescription>
             </Alert>)}
 
@@ -539,6 +685,29 @@ export default function ReservationPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {reservation.status === 'confirmed' && isFriendReservedRoom && (<Card>
+                  <CardHeader>
+                    <CardTitle>What Happens Next</CardTitle>
+                    <CardDescription>Your bed space is confirmed. Here is the next step before moving in.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <p className="font-medium text-foreground">1. Wait for check-in to open</p>
+                      <p className="text-sm text-muted-foreground">StayHub will keep this room assigned to you. Check in when your hostel window opens.</p>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <p className="font-medium text-foreground">2. Go to the porter desk for your hostel</p>
+                      <p className="text-sm text-muted-foreground">Tell the porter your matric number and that your room was approved in StayHub.</p>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <p className="font-medium text-foreground">3. Complete physical check-in</p>
+                      <p className="text-sm text-muted-foreground">After porter verification, your status will move from confirmed reservation to checked-in.</p>
+                    </div>
+                  </CardContent>
+                </Card>)}
+
+              {renderInviteTrackerCard()}
 
               {reservation.status === 'temporary' && (<div ref={invitationActionRef}>
                   <Card className={focusSection === 'invitation' ? 'border-primary/60 ring-2 ring-primary/15' : undefined}>
@@ -712,3 +881,12 @@ export default function ReservationPage() {
       </DashboardLayout>
     </ProtectedRoute>);
 }
+
+export default function ReservationPage() {
+    return (
+        <Suspense fallback={<div className="mx-auto max-w-4xl py-12 text-sm text-muted-foreground">Loading reservation page...</div>}>
+            <ReservationPageContent />
+        </Suspense>
+    );
+}
+

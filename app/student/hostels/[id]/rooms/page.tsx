@@ -34,6 +34,52 @@ interface Hostel {
     gender: string;
     description?: string;
 }
+interface InviteChannelSummary {
+    available: boolean;
+    willSend: boolean;
+    addressMasked?: string | null;
+    deviceCount?: number;
+}
+interface InvitePreview {
+    friend: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        matricNo: string;
+        level?: number;
+        paymentStatus?: string;
+        emailMasked?: string | null;
+        department?: {
+            name?: string;
+            code?: string;
+        } | string | null;
+    };
+    invitation: {
+        approvalWindowHours: number;
+        requiresPaymentBeforeApproval: boolean;
+        notificationChannels: {
+            email: InviteChannelSummary;
+            inApp: InviteChannelSummary;
+            push: InviteChannelSummary;
+        };
+    };
+}
+interface InvitedFriend {
+    _id: string;
+    matricNo: string;
+    name: string;
+    departmentLabel?: string | null;
+    level?: number;
+    paymentStatus?: string;
+    emailMasked?: string | null;
+    approvalWindowHours: number;
+    requiresPaymentBeforeApproval: boolean;
+    notificationChannels: {
+        email: InviteChannelSummary;
+        inApp: InviteChannelSummary;
+        push: InviteChannelSummary;
+    };
+}
 export default function HostelRoomsPage() {
     const router = useRouter();
     const params = useParams();
@@ -48,11 +94,7 @@ export default function HostelRoomsPage() {
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [reserving, setReserving] = useState(false);
     const [reserveWithFriends, setReserveWithFriends] = useState(false);
-    const [invitedFriends, setInvitedFriends] = useState<Array<{
-        matricNo: string;
-        name: string;
-        _id: string;
-    }>>([]);
+    const [invitedFriends, setInvitedFriends] = useState<InvitedFriend[]>([]);
     const [friendInput, setFriendInput] = useState('');
     const [validatingFriend, setValidatingFriend] = useState(false);
     const loadRooms = async () => {
@@ -120,6 +162,13 @@ export default function HostelRoomsPage() {
             return 'text-yellow-600';
         return 'text-green-600';
     };
+    const getDepartmentLabel = (department?: InvitePreview['friend']['department']) => {
+        if (!department)
+            return null;
+        if (typeof department === 'string')
+            return department;
+        return department.name || department.code || null;
+    };
     const handleReserveRoom = (roomId: string) => {
         const room = rooms.find(r => r._id === roomId);
         if (room) {
@@ -146,14 +195,27 @@ export default function HostelRoomsPage() {
         }
         setValidatingFriend(true);
         try {
-            const tempFriend = {
-                _id: `temp-${Date.now()}`,
+            const response = await studentAPI.previewReservationInvite({
+                roomId: selectedRoom._id,
+                hostelId,
                 matricNo: friendInput.toUpperCase(),
-                name: `Student (${friendInput})`,
+            });
+            const preview = (response.data.data || response.data) as InvitePreview;
+            const friend = preview.friend;
+            const nextFriend: InvitedFriend = {
+                _id: friend._id,
+                matricNo: friend.matricNo,
+                name: `${friend.firstName} ${friend.lastName}`.trim(),
+                departmentLabel: getDepartmentLabel(friend.department),
+                level: friend.level,
+                paymentStatus: friend.paymentStatus,
+                emailMasked: friend.emailMasked,
+                approvalWindowHours: preview.invitation.approvalWindowHours,
+                requiresPaymentBeforeApproval: preview.invitation.requiresPaymentBeforeApproval,
+                notificationChannels: preview.invitation.notificationChannels,
             };
-            setInvitedFriends([...invitedFriends, tempFriend]);
+            setInvitedFriends([...invitedFriends, nextFriend]);
             setFriendInput('');
-            alert(`✅ Friend added! Note: Backend validation endpoint needed.\n\nMatric: ${friendInput}\n\nThe backend should validate:\n- Student exists\n- No existing reservation\n- Gender matches room (${selectedRoom.gender})\n- Not the current user`);
         }
         catch (error: unknown) {
             console.error('Friend validation failed:', error);
@@ -546,6 +608,9 @@ export default function HostelRoomsPage() {
                         <Users className="h-4 w-4"/>
                         <span>Add friends by their matric number</span>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        StayHub will look up each student record from the matric number, then send the room invite automatically by email, in-app notification, and push if their mobile device is connected.
+                      </p>
 
                       
                       <div className="flex gap-2">
@@ -566,11 +631,30 @@ export default function HostelRoomsPage() {
                           <p className="text-sm font-medium">
                             Invited Friends ({invitedFriends.length})
                           </p>
-                          <div className="space-y-1">
-                            {invitedFriends.map((friend) => (<div key={friend.matricNo} className="flex items-center justify-between p-2 rounded bg-background border">
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-medium">{friend.name}</span>
-                                  <span className="text-xs text-muted-foreground">{friend.matricNo}</span>
+                          <div className="space-y-2">
+                            {invitedFriends.map((friend) => (<div key={friend.matricNo} className="flex items-start justify-between gap-3 p-3 rounded bg-background border">
+                                <div className="flex flex-col gap-2">
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium">{friend.name}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {friend.matricNo}
+                                      {friend.departmentLabel ? ` • ${friend.departmentLabel}` : ''}
+                                      {friend.level ? ` • ${friend.level} level` : ''}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Badge variant="outline">
+                                      Email {friend.emailMasked ? `• ${friend.emailMasked}` : ''}
+                                    </Badge>
+                                    <Badge variant="outline">In-app alert</Badge>
+                                    {friend.notificationChannels.push.willSend ? (<Badge variant="outline">
+                                        Push {friend.notificationChannels.push.deviceCount ? `• ${friend.notificationChannels.push.deviceCount} device${friend.notificationChannels.push.deviceCount === 1 ? '' : 's'}` : ''}
+                                      </Badge>) : (<Badge variant="secondary">Push when device connects</Badge>)}
+                                    {friend.requiresPaymentBeforeApproval && (<Badge variant="secondary">Payment pending before approval</Badge>)}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Approval window: {friend.approvalWindowHours} hours
+                                  </p>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={() => removeFriend(friend.matricNo)} className="h-8 w-8 p-0">
                                   <X className="h-4 w-4"/>
@@ -586,6 +670,8 @@ export default function HostelRoomsPage() {
                             Total reservations: <strong>{1 + invitedFriends.length}</strong> (You + {invitedFriends.length} friend{invitedFriends.length !== 1 ? 's' : ''})
                             <br />
                             Available spaces: <strong>{selectedRoom.availableSpaces}</strong>
+                            <br />
+                            Every invited friend will get an automatic StayHub invite and has 24 hours to approve.
                           </AlertDescription>
                         </Alert>)}
                     </div>)}
@@ -601,10 +687,10 @@ export default function HostelRoomsPage() {
               </div>)}
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => resetReservationDialog()} disabled={reserving}>
+              <Button variant="outline" onClick={() => resetReservationDialog()} disabled={reserving || validatingFriend}>
                 Cancel
               </Button>
-              <Button onClick={confirmReservation} disabled={reserving}>
+              <Button onClick={confirmReservation} disabled={reserving || validatingFriend}>
                 {reserving ? 'Reserving...' : reserveWithFriends && invitedFriends.length > 0 ? `Reserve for ${1 + invitedFriends.length} Students` : 'Confirm Reservation'}
               </Button>
             </DialogFooter>

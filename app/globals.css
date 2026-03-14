@@ -150,6 +150,8 @@
   }
 }
 :root {
+  --font-geist-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --radius: 0.65rem;
   --background: oklch(0.965 0.008 264);
   --foreground: oklch(0.141 0.005 285.823);
