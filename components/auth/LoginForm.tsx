@@ -39,8 +39,10 @@ export default function LoginForm() {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 role: user.role,
+                matricNumber: user.matricNumber || user.matricNo,
                 matricNo: user.matricNo,
                 firstLogin: user.firstLogin,
+                profilePicture: user.profilePicture ?? null,
             };
             setAuth(normalizedUser, token);
             const redirectPath = useAuthStore.getState().getRedirectPath();

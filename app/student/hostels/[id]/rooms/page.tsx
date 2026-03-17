@@ -34,6 +34,11 @@ interface Hostel {
     gender: string;
     description?: string;
 }
+interface ActiveReservationInfo {
+    status: string;
+    roomNumber?: string;
+    hostelName?: string;
+}
 interface InviteChannelSummary {
     available: boolean;
     willSend: boolean;
@@ -97,6 +102,7 @@ export default function HostelRoomsPage() {
     const [invitedFriends, setInvitedFriends] = useState<InvitedFriend[]>([]);
     const [friendInput, setFriendInput] = useState('');
     const [validatingFriend, setValidatingFriend] = useState(false);
+    const [activeReservation, setActiveReservation] = useState<ActiveReservationInfo | null>(null);
     const loadRooms = async () => {
         setLoading(true);
         try {
@@ -124,6 +130,29 @@ export default function HostelRoomsPage() {
             setLoading(false);
         }
     };
+    const loadActiveReservation = async () => {
+        try {
+            const response = await studentAPI.getReservation();
+            const reservationData = response.data.data || response.data;
+            const reservationStatus = String(reservationData?.reservationStatus || reservationData?.status || '').toLowerCase();
+            if (!reservationData || !['temporary', 'confirmed', 'checked_in', 'checked-in'].includes(reservationStatus)) {
+                setActiveReservation(null);
+                return;
+            }
+            setActiveReservation({
+                status: reservationStatus,
+                roomNumber: reservationData?.room?.roomNumber || reservationData?.assignedRoom?.roomNumber,
+                hostelName: reservationData?.hostel?.name || reservationData?.assignedHostel?.name,
+            });
+        }
+        catch (error: any) {
+            if (error?.response?.status === 404) {
+                setActiveReservation(null);
+                return;
+            }
+            console.error('Failed to load current reservation:', error);
+        }
+    };
     useEffect(() => {
         const loadHostelDetails = async () => {
             try {
@@ -140,6 +169,7 @@ export default function HostelRoomsPage() {
         };
         if (hostelId) {
             loadHostelDetails();
+            loadActiveReservation();
             loadRooms();
         }
     }, [hostelId]);
@@ -170,6 +200,10 @@ export default function HostelRoomsPage() {
         return department.name || department.code || null;
     };
     const handleReserveRoom = (roomId: string) => {
+        if (activeReservation) {
+            router.push('/student/reservation');
+            return;
+        }
         const room = rooms.find(r => r._id === roomId);
         if (room) {
             setSelectedRoom(room);
@@ -280,9 +314,19 @@ export default function HostelRoomsPage() {
                 response?: {
                     status?: number;
                     data?: {
+                        code?: string;
                         message?: string;
                         error?: string;
                         details?: string;
+                        data?: {
+                            reservation?: {
+                                room?: { roomNumber?: string };
+                                hostel?: { name?: string };
+                                reservationStatus?: string;
+                                status?: string;
+                            };
+                            reservationStatus?: string;
+                        };
                     };
                 };
                 message?: string;
@@ -299,6 +343,20 @@ export default function HostelRoomsPage() {
             if (status === 403 || errorMessage.toLowerCase().includes('payment required')) {
                 resetReservationDialog();
                 router.push('/student/payment');
+                return;
+            }
+            else if (status === 409 && errorData?.data?.reservation) {
+                const conflictingReservation = errorData.data.reservation;
+                const conflictRoom = conflictingReservation?.room?.roomNumber || 'your assigned room';
+                const conflictHostel = conflictingReservation?.hostel?.name || 'your hostel';
+                alert(`❌ Reservation Blocked\n\n${errorMessage}\n\nCurrent room: ${conflictRoom} in ${conflictHostel}\n\nYou will be redirected to your reservation page.`);
+                setActiveReservation({
+                    status: errorData?.data?.reservationStatus || conflictingReservation?.reservationStatus || conflictingReservation?.status || 'confirmed',
+                    roomNumber: conflictingReservation?.room?.roomNumber,
+                    hostelName: conflictingReservation?.hostel?.name,
+                });
+                resetReservationDialog();
+                router.push('/student/reservation');
                 return;
             }
             else if (errorMessage.includes('No available bunks')) {
@@ -337,6 +395,19 @@ export default function HostelRoomsPage() {
     return (<ProtectedRoute allowedRoles={['student']}>
       <DashboardLayout>
         <div className="space-y-6">
+          {activeReservation && (<Alert>
+              <AlertCircle className="h-4 w-4"/>
+              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  You already have a {activeReservation.status.replace('_', ' ')} room assignment
+                  {activeReservation.roomNumber ? ` for Room ${activeReservation.roomNumber}` : ''}
+                  {activeReservation.hostelName ? ` in ${activeReservation.hostelName}` : ''}. Open your reservation to add friends to the same room.
+                </span>
+                <Button variant="outline" size="sm" onClick={() => router.push('/student/reservation')}>
+                  Manage My Room
+                </Button>
+              </AlertDescription>
+            </Alert>)}
           
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => router.push('/student/hostels')}>
@@ -526,10 +597,10 @@ export default function HostelRoomsPage() {
                         </div>)}
 
                       
-                      <Button className="w-full" onClick={() => handleReserveRoom(room._id)} disabled={!hasSpace} size="sm">
-                        {hasSpace ? (<>
+                      <Button className="w-full" onClick={() => handleReserveRoom(room._id)} disabled={!hasSpace && !activeReservation} size="sm">
+                        {hasSpace || activeReservation ? (<>
                             <CheckCircle2 className="mr-2 h-4 w-4"/>
-                            Reserve Room
+                            {activeReservation ? 'Manage My Room' : 'Reserve Room'}
                           </>) : ('Room Full')}
                       </Button>
                     </CardContent>

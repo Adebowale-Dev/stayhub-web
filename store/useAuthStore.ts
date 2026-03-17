@@ -11,6 +11,7 @@ interface User {
     matricNumber?: string;
     matricNo?: string;
     firstLogin?: boolean;
+    profilePicture?: string | null;
 }
 interface AuthState {
     user: User | null;

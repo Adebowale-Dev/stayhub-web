@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/themeprovider";
 export const metadata: Metadata = {
-    title: "StayHub - Student Accommodation Management",
-    description: "Manage student hostel accommodation with ease",
+    title: "StayHub | Student Accommodation Platform",
+    description: "A modern landing page and operations hub for student hostels, reservations, payments, and move-ins.",
     icons: {
         icon: '/favicon.ico',
     },

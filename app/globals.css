@@ -230,6 +230,64 @@
   }
 }
 
+@layer components {
+  .landing-surface {
+    background:
+      radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 30%),
+      radial-gradient(circle at top right, rgba(245, 158, 11, 0.15), transparent 24%),
+      linear-gradient(180deg, #f8f1e4 0%, #fffaf4 44%, #f0ede6 100%);
+  }
+
+  .landing-grid {
+    background-image:
+      linear-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 90%);
+  }
+
+  .landing-panel {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.76);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.06);
+    backdrop-filter: blur(18px);
+  }
+
+  .landing-orb {
+    pointer-events: none;
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(8px);
+    opacity: 0.8;
+    animation: landing-drift 14s ease-in-out infinite alternate;
+  }
+
+  .landing-orb-teal {
+    top: 7rem;
+    right: 6%;
+    height: 12rem;
+    width: 12rem;
+    background: radial-gradient(circle, rgba(45, 212, 191, 0.38), rgba(15, 118, 110, 0));
+  }
+
+  .landing-orb-amber {
+    bottom: 9rem;
+    left: 4%;
+    height: 15rem;
+    width: 15rem;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.32), rgba(245, 158, 11, 0));
+    animation-duration: 18s;
+  }
+
+  .landing-float {
+    animation: landing-float 8s ease-in-out infinite;
+  }
+
+  .landing-rise {
+    animation: landing-rise 0.8s ease-out both;
+  }
+}
+
 
 .force-light {
   --background: oklch(0.965 0.008 264);
@@ -261,4 +319,37 @@
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+}
+
+@keyframes landing-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes landing-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(24px, -18px, 0);
+  }
 }

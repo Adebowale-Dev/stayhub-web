@@ -7,9 +7,10 @@ import { studentAPI } from '@/services/api';
 import useAuthStore from '@/store/useAuthStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Building2, MapPin, Bed, Users, Calendar, CheckCircle2, Clock, XCircle, AlertCircle, Home, ArrowRight, Info } from 'lucide-react';
+import { Building2, Bed, Users, CheckCircle2, Clock, XCircle, AlertCircle, Home, ArrowRight, Info, UserPlus } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 interface Reservation {
     _id?: string;
@@ -46,6 +47,7 @@ interface Reservation {
         capacity?: number;
         currentOccupants?: number;
         occupants?: number;
+        availableSpaces?: number;
     };
     bunk?: {
         _id?: string;
@@ -82,6 +84,16 @@ interface Reservation {
     createdAt?: string;
     updatedAt?: string;
     roommates?: any[];
+    groupMembers?: GroupMember[];
+}
+interface GroupMember {
+    _id?: string;
+    id?: string;
+    firstName?: string;
+    lastName?: string;
+    matricNo?: string;
+    matricNumber?: string;
+    status?: string;
 }
 interface InvitationHistoryEntry {
     _id?: string;
@@ -117,6 +129,8 @@ function ReservationPageContent() {
     const [studentProfile, setStudentProfile] = useState<any>(null);
     const [paymentStatus, setPaymentStatus] = useState<string>('pending');
     const [actionLoading, setActionLoading] = useState<'approve' | 'reject' | null>(null);
+    const [addingMembers, setAddingMembers] = useState(false);
+    const [newMatrics, setNewMatrics] = useState<string[]>(['']);
     const [actionFeedback, setActionFeedback] = useState<{
         type: 'success' | 'info';
         message: string;
@@ -146,6 +160,9 @@ function ReservationPageContent() {
         }, 150);
         return () => window.clearTimeout(timer);
     }, [focusSection, invitationHistory.length, loading, reservation?.status]);
+    useEffect(() => {
+        setNewMatrics(['']);
+    }, [reservation?._id]);
     const loadInvitationHistory = async () => {
         const historyResponse = await studentAPI.getInvitationHistory().catch((historyError) => {
             console.error('Failed to load invitation history:', historyError);
@@ -239,6 +256,7 @@ function ReservationPageContent() {
                     floor: rawRoom.floor,
                     capacity: rawRoom.capacity ?? 0,
                     currentOccupants: rawRoom.currentOccupants ?? (rawRoom.availableSpaces != null ? (rawRoom.capacity - rawRoom.availableSpaces) : 0),
+                    availableSpaces: rawRoom.availableSpaces ?? Math.max(0, (rawRoom.capacity ?? 0) - (rawRoom.currentOccupants ?? 0)),
                 } : null,
                 bunk: rawBunk ? {
                     _id: rawBunk._id,
@@ -246,6 +264,7 @@ function ReservationPageContent() {
                     position: rawBunk.position,
                 } : null,
                 reservedBy: reservationData.reservedBy || null,
+                groupMembers: reservationData.groupMembers || [],
                 approvalRequired: reservationData.approvalRequired ?? reservationData.reservationStatus === 'temporary',
             };
             setReservation(mappedReservation);
@@ -336,6 +355,70 @@ function ReservationPageContent() {
         }
         finally {
             setActionLoading(null);
+        }
+    };
+    const updateMatricField = (index: number, value: string) => {
+        setNewMatrics((current) => {
+            const next = [...current];
+            next[index] = value.toUpperCase();
+            return next;
+        });
+    };
+    const addMatricField = () => {
+        setNewMatrics((current) => [...current, '']);
+    };
+    const removeMatricField = (index: number) => {
+        setNewMatrics((current) => current.length === 1 ? [''] : current.filter((_, currentIndex) => currentIndex !== index));
+    };
+    const handleAddMembers = async () => {
+        if (!reservation?._id) {
+            return;
+        }
+        const filled = newMatrics.map((matric) => matric.trim()).filter(Boolean);
+        if (filled.length === 0) {
+            setActionFeedback({
+                type: 'info',
+                message: 'Enter at least one matric number before adding friends.',
+            });
+            return;
+        }
+        if (new Set(filled).size !== filled.length) {
+            setActionFeedback({
+                type: 'info',
+                message: 'Each matric number must be unique.',
+            });
+            return;
+        }
+        const existingMatrics = [
+            reservation.student?.matricNo || reservation.student?.matricNumber,
+            ...((reservation.groupMembers || []).map((member) => member.matricNo || member.matricNumber)),
+        ].filter(Boolean);
+        const alreadyInRoom = filled.find((matric) => existingMatrics.includes(matric));
+        if (alreadyInRoom) {
+            setActionFeedback({
+                type: 'info',
+                message: `${alreadyInRoom} is already part of this room reservation.`,
+            });
+            return;
+        }
+        try {
+            setAddingMembers(true);
+            await studentAPI.addGroupMembers(reservation._id, filled);
+            setNewMatrics(['']);
+            await fetchStudentData();
+            setActionFeedback({
+                type: 'success',
+                message: `${filled.length} friend${filled.length === 1 ? '' : 's'} added to your room successfully.`,
+            });
+        }
+        catch (err: any) {
+            setActionFeedback({
+                type: 'info',
+                message: err.response?.data?.message || 'Failed to add friends to this room.',
+            });
+        }
+        finally {
+            setAddingMembers(false);
         }
     };
     const getInvitationParticipantName = (person?: InvitationHistoryEntry['relatedStudent'] | InvitationHistoryEntry['actor'], fallback = 'A student') => {
@@ -516,6 +599,89 @@ function ReservationPageContent() {
       </CardContent>
     </Card>);
     };
+    const renderRoomMembersCard = () => {
+        if (!reservation) {
+            return null;
+        }
+        const reservationStatus = String(reservation.status || reservation.reservationStatus || '').toLowerCase().replace('_', '-');
+        if (reservationStatus === 'temporary' || reservationStatus === 'expired') {
+            return null;
+        }
+        const ownerName = reservation.student?.firstName && reservation.student?.lastName
+            ? `${reservation.student.firstName} ${reservation.student.lastName}`
+            : 'You';
+        const ownerMatric = reservation.student?.matricNo || reservation.student?.matricNumber || 'Matric unavailable';
+        const roomMembers = reservation.groupMembers || [];
+        const ownerNote = reservation.reservedBy?._id && reservation.reservedBy._id !== reservation.student?._id
+            ? 'You are part of this room'
+            : 'Your reserved bed in this room';
+        return (<Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5"/>
+          Room Members
+        </CardTitle>
+        <CardDescription>
+          Keep this room together by inviting friends into the remaining bed spaces.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">{ownerName}</p>
+              <p className="text-sm text-muted-foreground">{ownerMatric}</p>
+              <p className="text-xs text-muted-foreground">{ownerNote}</p>
+            </div>
+            {getStatusBadge(reservation.status ?? 'confirmed')}
+          </div>
+        </div>
+
+        {roomMembers.length > 0 ? roomMembers.map((member, index) => {
+                const memberName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim() || member.matricNumber || member.matricNo || `Friend ${index + 1}`;
+                return (<div key={member._id || member.id || `${member.matricNumber}-${index}`} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">{memberName}</p>
+                  <p className="text-sm text-muted-foreground">{member.matricNumber || member.matricNo || 'Matric unavailable'}</p>
+                </div>
+                {getStatusBadge(member.status || 'temporary')}
+              </div>
+            </div>);
+            }) : (<p className="text-sm text-muted-foreground">
+            No friends have been added to this room yet.
+          </p>)}
+
+        {canAddFriends ? (<div className="space-y-3 rounded-xl border border-dashed border-border p-4">
+            <div className="flex items-start gap-2">
+              <UserPlus className="mt-0.5 h-4 w-4 text-primary"/>
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">Add friends to room {reservation.room?.roomNumber}</p>
+                <p className="text-sm text-muted-foreground">
+                  {availableSpaces} bed{availableSpaces === 1 ? '' : 's'} still open. Enter your friends&apos; matric numbers and StayHub will send the invites.
+                </p>
+              </div>
+            </div>
+
+            {newMatrics.map((matric, index) => (<div key={`${index}-${reservation._id || 'reservation'}`} className="flex gap-2">
+                <Input value={matric} onChange={(event) => updateMatricField(index, event.target.value)} placeholder={`Friend ${index + 1} matric number`} autoComplete="off"/>
+                <Button type="button" variant="outline" onClick={() => removeMatricField(index)} disabled={addingMembers}>
+                  Remove
+                </Button>
+              </div>))}
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" variant="outline" onClick={addMatricField} disabled={addingMembers || newMatrics.length >= availableSpaces}>
+                Add Another Friend
+              </Button>
+              <Button type="button" onClick={handleAddMembers} disabled={addingMembers}>
+                {addingMembers ? 'Adding Friends...' : 'Add Friends To This Room'}
+              </Button>
+            </div>
+          </div>) : null}
+      </CardContent>
+    </Card>);
+    };
     const renderInvitationHistoryCard = () => (<div ref={historyRef}>
       <Card className={focusSection === 'history' ? 'border-primary/60 ring-2 ring-primary/15' : undefined}>
         <CardHeader>
@@ -560,6 +726,9 @@ function ReservationPageContent() {
     </div>);
     const shouldShowHistoryCard = invitationHistory.length > 0 || focusSection === 'history';
     const isFriendReservedRoom = Boolean(reservation?.reservedBy?._id && reservation?.reservedBy?._id !== user?._id);
+    const normalizedReservationStatus = String(reservation?.status || '').toLowerCase().replace('_', '-');
+    const availableSpaces = reservation?.room?.availableSpaces ?? Math.max(0, (reservation?.room?.capacity || 0) - (reservation?.room?.currentOccupants || 0));
+    const canAddFriends = Boolean(reservation && availableSpaces > 0 && (normalizedReservationStatus === 'confirmed' || normalizedReservationStatus === 'checked-in'));
     if (loading) {
         return (<ProtectedRoute allowedRoles={['student']}>
         <DashboardLayout>
@@ -670,14 +839,14 @@ function ReservationPageContent() {
                 : 'Date not provided by server'}
                       </p>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Expires On</p>
-                      <p className="font-medium">
-                        {reservation.expiresAt
-                ? formatDate(reservation.expiresAt)
-                : 'Date not provided by server'}
-                      </p>
-                    </div>
+                    {normalizedReservationStatus !== 'checked-in' && (<div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Expires On</p>
+                        <p className="font-medium">
+                          {reservation.expiresAt
+                    ? formatDate(reservation.expiresAt)
+                    : 'Date not provided by server'}
+                        </p>
+                      </div>)}
                     {reservation.checkedInAt && (<div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Checked In</p>
                         <p className="font-medium">{formatDate(reservation.checkedInAt)}</p>
@@ -706,6 +875,8 @@ function ReservationPageContent() {
                     </div>
                   </CardContent>
                 </Card>)}
+
+              {renderRoomMembersCard()}
 
               {renderInviteTrackerCard()}
 

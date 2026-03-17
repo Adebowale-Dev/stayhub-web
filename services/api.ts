@@ -31,6 +31,9 @@ export const authAPI = {
     logout: () => api.post('/auth/logout'),
     getProfile: () => api.get('/auth/profile'),
     updateProfile: (data: Record<string, unknown>) => api.put('/auth/profile', data),
+    uploadProfilePicture: (formData: FormData) => api.post('/student/profile/picture', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
     resetPassword: (token: string, newPassword: string) => api.post('/auth/reset-password', { token, newPassword }),
     changePassword: (oldPassword: string, newPassword: string, confirmPassword: string) => api.post('/auth/change-password', { oldPassword, newPassword, confirmPassword }),
@@ -100,6 +103,10 @@ export const studentAPI = {
         hostelId?: string;
     }) => api.post('/student/reservation/invite-preview', payload),
     reserveRoom: (data: Record<string, unknown>) => api.post('/student/reservations', data),
+    addGroupMembers: (reservationId: string, matricNumbers: string[]) => api.post('/student/reservation/members', {
+        reservationId,
+        matrics: matricNumbers,
+    }),
     getReservation: () => api.get('/student/reservation'),
     respondToInvitation: (action: 'approve' | 'reject') => api.post('/student/reservation/respond', { action }),
 };

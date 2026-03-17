@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, Building2, DoorOpen, UserCog, CreditCard, BarChart3, Home, Ticket, User, UserCheck, FileText, Bell, } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveMediaUrl } from '@/lib/media';
 import useAuthStore from '@/store/useAuthStore';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 interface NavItem {
     title: string;
     href: string;
@@ -45,6 +46,8 @@ interface AppSidebarProps {
 export function AppSidebar({ className }: AppSidebarProps) {
     const pathname = usePathname();
     const { user } = useAuthStore();
+    const profilePictureUrl = resolveMediaUrl(user?.profilePicture);
+    const userDisplayName = user?.firstName || 'User';
     const getNavItems = (): NavItem[] => {
         switch (user?.role) {
             case 'admin':
@@ -99,6 +102,7 @@ export function AppSidebar({ className }: AppSidebarProps) {
       <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-3 rounded-xl px-2 py-2">
           <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+            {profilePictureUrl ? (<AvatarImage src={profilePictureUrl} alt={`${userDisplayName} profile picture`}/>) : null}
             <AvatarFallback className="bg-primary/10 text-sm font-bold text-primary">
               {getInitials()}
             </AvatarFallback>

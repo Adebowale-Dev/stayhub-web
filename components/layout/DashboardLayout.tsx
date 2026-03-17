@@ -5,7 +5,8 @@ import { Menu, X, Bell, Search, AlertCircle, CheckCircle2, Info, TriangleAlert }
 import useAuthStore from '../../store/useAuthStore';
 import { authAPI, studentAPI } from '../../services/api';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { resolveMediaUrl } from '@/lib/media';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, } from '@/components/ui/dropdown-menu';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AnimatedThemeToggler } from '../themetoggler';
@@ -69,6 +70,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const router = useRouter();
     const pathname = usePathname();
     const { user, logout } = useAuthStore();
+    const profilePictureUrl = resolveMediaUrl(user?.profilePicture);
+    const userDisplayName = user?.firstName || 'User';
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [notifications, setNotifications] = useState<StudentNotification[]>([]);
     const [loadingAlerts, setLoadingAlerts] = useState(false);
@@ -322,6 +325,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
                 <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+                  {profilePictureUrl ? (<AvatarImage src={profilePictureUrl} alt={`${userDisplayName} profile picture`}/>) : null}
                   <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
                     {getInitials()}
                   </AvatarFallback>

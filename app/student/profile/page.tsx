@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -9,17 +9,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { User, Mail, Phone, MapPin, Calendar, Building2, GraduationCap, CreditCard, Home, AlertCircle, CheckCircle2, ArrowLeft, Settings } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { resolveMediaUrl } from '@/lib/media';
+import useAuthStore from '@/store/useAuthStore';
+import { User, Mail, Phone, MapPin, Calendar, Building2, GraduationCap, CreditCard, Home, AlertCircle, Camera, CheckCircle2, ArrowLeft, Settings, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 interface StudentProfile {
     _id: string;
     name: string;
+    firstName?: string;
+    lastName?: string;
     email: string;
     matricNumber?: string;
     matricNo?: string;
     phoneNumber?: string;
     dateOfBirth?: string;
     address?: string;
+    profilePicture?: string | null;
     college?: {
         _id: string;
         name: string;
@@ -54,10 +60,13 @@ interface StudentProfile {
 }
 export default function StudentProfile() {
     const router = useRouter();
+    const setAuthUser = useAuthStore((state) => state.setUser);
     const [profile, setProfile] = useState<StudentProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [pictureAction, setPictureAction] = useState<'uploading' | 'removing' | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [editedProfile, setEditedProfile] = useState<{
         name?: string;
         email?: string;
@@ -68,59 +77,107 @@ export default function StudentProfile() {
         matricNumber?: string;
         level?: string;
     }>({});
-    useEffect(() => {
-        fetchProfile();
-    }, []);
-    const fetchProfile = async () => {
-        try {
-            const response = await authAPI.getProfile();
-            console.log('Profile API Response:', response.data);
-            const profileData = response.data.user || response.data.data || response.data;
-            console.log('Profile Data:', profileData);
-            setProfile(profileData);
-            setEditedProfile({
-                name: profileData.name || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim(),
-                email: profileData.email || '',
-                phoneNumber: profileData.phoneNumber || '',
-                address: profileData.address || '',
-                dateOfBirth: profileData.dateOfBirth || '',
-                gender: profileData.gender || '',
-                matricNumber: profileData.matricNo || profileData.matricNumber || '',
-                level: profileData.level?.toString() || '',
-            });
+    const syncStoredUser = (profileData: StudentProfile) => {
+        const currentUser = useAuthStore.getState().user;
+        if (!currentUser) {
+            return;
         }
-        catch (error) {
-            console.error('Failed to fetch profile:', error);
-        }
-        finally {
-            setLoading(false);
-        }
+        const fallbackName = profileData.name?.trim() ||
+            `${profileData.firstName || currentUser.firstName || ''} ${profileData.lastName || currentUser.lastName || ''}`.trim();
+        const [derivedFirstName = currentUser.firstName || '', ...derivedLastNameParts] = fallbackName.split(' ').filter(Boolean);
+        setAuthUser({
+            ...currentUser,
+            id: profileData._id || currentUser.id,
+            _id: profileData._id || currentUser._id,
+            email: profileData.email || currentUser.email,
+            firstName: profileData.firstName || currentUser.firstName || derivedFirstName,
+            lastName: profileData.lastName || currentUser.lastName || derivedLastNameParts.join(' '),
+            matricNumber: profileData.matricNumber || currentUser.matricNumber,
+            matricNo: profileData.matricNo || currentUser.matricNo,
+            profilePicture: profileData.profilePicture ?? null,
+        });
     };
+    const buildEditedProfile = (profileData: StudentProfile) => ({
+        name: profileData.name || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim(),
+        email: profileData.email || '',
+        phoneNumber: profileData.phoneNumber || '',
+        address: profileData.address || '',
+        dateOfBirth: profileData.dateOfBirth || '',
+        gender: profileData.gender || '',
+        matricNumber: profileData.matricNo || profileData.matricNumber || '',
+        level: profileData.level?.toString() || '',
+    });
+    const applyProfileUpdate = (profileData: StudentProfile) => {
+        setProfile(profileData);
+        setEditedProfile(buildEditedProfile(profileData));
+        syncStoredUser(profileData);
+    };
+    const getApiErrorMessage = (error: unknown, fallbackMessage: string) => {
+        const axiosError = error as {
+            response?: {
+                status?: number;
+                data?: {
+                    message?: string;
+                };
+            };
+        };
+        if (axiosError.response?.status === 404) {
+            return 'Profile upload endpoint not found. Restart the backend server if it was just updated.';
+        }
+        return axiosError.response?.data?.message || fallbackMessage;
+    };
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const response = await authAPI.getProfile();
+                console.log('Profile API Response:', response.data);
+                const profileData = response.data.user || response.data.data || response.data;
+                console.log('Profile Data:', profileData);
+                setProfile(profileData);
+                setEditedProfile({
+                    name: profileData.name || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim(),
+                    email: profileData.email || '',
+                    phoneNumber: profileData.phoneNumber || '',
+                    address: profileData.address || '',
+                    dateOfBirth: profileData.dateOfBirth || '',
+                    gender: profileData.gender || '',
+                    matricNumber: profileData.matricNo || profileData.matricNumber || '',
+                    level: profileData.level?.toString() || '',
+                });
+                const currentUser = useAuthStore.getState().user;
+                if (currentUser) {
+                    const fallbackName = profileData.name?.trim() ||
+                        `${profileData.firstName || currentUser.firstName || ''} ${profileData.lastName || currentUser.lastName || ''}`.trim();
+                    const [derivedFirstName = currentUser.firstName || '', ...derivedLastNameParts] = fallbackName.split(' ').filter(Boolean);
+                    setAuthUser({
+                        ...currentUser,
+                        id: profileData._id || currentUser.id,
+                        _id: profileData._id || currentUser._id,
+                        email: profileData.email || currentUser.email,
+                        firstName: profileData.firstName || currentUser.firstName || derivedFirstName,
+                        lastName: profileData.lastName || currentUser.lastName || derivedLastNameParts.join(' '),
+                        matricNumber: profileData.matricNumber || currentUser.matricNumber,
+                        matricNo: profileData.matricNo || currentUser.matricNo,
+                        profilePicture: profileData.profilePicture ?? null,
+                    });
+                }
+            }
+            catch (error) {
+                console.error('Failed to fetch profile:', error);
+            }
+            finally {
+                setLoading(false);
+            }
+        };
+        fetchProfile();
+    }, [setAuthUser]);
     const handleEdit = () => {
         setEditing(true);
-        setEditedProfile({
-            name: profile?.name || '',
-            email: profile?.email || '',
-            phoneNumber: profile?.phoneNumber || '',
-            address: profile?.address || '',
-            dateOfBirth: profile?.dateOfBirth || '',
-            gender: profile?.gender || '',
-            matricNumber: profile?.matricNumber || '',
-            level: profile?.level?.toString() || '',
-        });
+        setEditedProfile(profile ? buildEditedProfile(profile) : {});
     };
     const handleCancel = () => {
         setEditing(false);
-        setEditedProfile({
-            name: profile?.name || '',
-            email: profile?.email || '',
-            phoneNumber: profile?.phoneNumber || '',
-            address: profile?.address || '',
-            dateOfBirth: profile?.dateOfBirth || '',
-            gender: profile?.gender || '',
-            matricNumber: profile?.matricNumber || '',
-            level: profile?.level?.toString() || '',
-        });
+        setEditedProfile(profile ? buildEditedProfile(profile) : {});
     };
     const handleSave = async () => {
         setSaving(true);
@@ -137,46 +194,79 @@ export default function StudentProfile() {
             };
             const response = await authAPI.updateProfile(updatePayload);
             const updatedProfile = response.data.user || response.data.data || response.data;
-            setProfile(updatedProfile);
-            setEditedProfile({
-                name: updatedProfile.name || `${updatedProfile.firstName || ''} ${updatedProfile.lastName || ''}`.trim(),
-                email: updatedProfile.email || '',
-                phoneNumber: updatedProfile.phoneNumber || '',
-                address: updatedProfile.address || '',
-                dateOfBirth: updatedProfile.dateOfBirth || '',
-                gender: updatedProfile.gender || '',
-                matricNumber: updatedProfile.matricNo || updatedProfile.matricNumber || '',
-                level: updatedProfile.level?.toString() || '',
-            });
+            applyProfileUpdate(updatedProfile);
             setEditing(false);
             alert('Profile updated successfully!');
         }
         catch (error: unknown) {
             console.error('Failed to update profile:', error);
-            const axiosError = error as {
-                response?: {
-                    status?: number;
-                    data?: {
-                        message?: string;
-                    };
-                };
-            };
-            let errorMessage = 'Failed to update profile. Please try again.';
-            if (axiosError.response?.status === 404) {
-                errorMessage = 'Update profile endpoint not found. Please contact the administrator.';
-            }
-            else if (axiosError.response?.data?.message) {
-                errorMessage = axiosError.response.data.message;
-            }
-            alert(errorMessage);
+            alert(getApiErrorMessage(error, 'Failed to update profile. Please try again.'));
         }
         finally {
             setSaving(false);
         }
     };
+    const handlePictureSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('Please upload a JPEG, PNG, or WebP image.');
+            event.target.value = '';
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image must be 5 MB or smaller.');
+            event.target.value = '';
+            return;
+        }
+        const formData = new FormData();
+        formData.append('picture', file);
+        setPictureAction('uploading');
+        try {
+            const response = await authAPI.uploadProfilePicture(formData);
+            const updatedProfile = response.data.user ||
+                response.data.data?.student ||
+                response.data.student ||
+                response.data.data;
+            applyProfileUpdate(updatedProfile);
+            alert('Profile picture updated successfully!');
+        }
+        catch (error) {
+            console.error('Failed to upload profile picture:', error);
+            alert(getApiErrorMessage(error, 'Failed to upload profile picture. Please try again.'));
+        }
+        finally {
+            setPictureAction(null);
+            event.target.value = '';
+        }
+    };
+    const handleRemovePicture = async () => {
+        if (!profile?.profilePicture) {
+            return;
+        }
+        setPictureAction('removing');
+        try {
+            const response = await authAPI.updateProfile({ profilePicture: null });
+            const updatedProfile = response.data.user || response.data.data || response.data;
+            applyProfileUpdate(updatedProfile);
+            alert('Profile picture removed successfully!');
+        }
+        catch (error) {
+            console.error('Failed to remove profile picture:', error);
+            alert(getApiErrorMessage(error, 'Failed to remove profile picture. Please try again.'));
+        }
+        finally {
+            setPictureAction(null);
+        }
+    };
     const handleInputChange = (field: 'name' | 'email' | 'phoneNumber' | 'address' | 'dateOfBirth' | 'gender' | 'matricNumber' | 'level', value: string) => {
         setEditedProfile({ ...editedProfile, [field]: value });
     };
+    const profilePictureUrl = resolveMediaUrl(profile?.profilePicture);
+    const profileDisplayName = profile?.name || 'Student';
     const getStatusBadge = (status?: string) => {
         if (!status)
             return null;
@@ -252,12 +342,34 @@ export default function StudentProfile() {
             </div>
           </div>
 
-          
-          
+          <Card className="overflow-hidden">
             <CardContent className="pt-6">
               <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-                <div className="h-32 w-32 border-4 border-white dark:border-gray-800 shadow-lg rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <User className="h-16 w-16 text-gray-400 dark:text-gray-600"/>
+                <div className="flex flex-col items-center gap-3">
+                  <Avatar className="h-32 w-32 border-4 border-white dark:border-gray-800 shadow-lg">
+                    {profilePictureUrl ? (<AvatarImage src={profilePictureUrl} alt={`${profileDisplayName} profile picture`} className="object-cover"/>) : null}
+                    <AvatarFallback className="bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600">
+                      <User className="h-16 w-16"/>
+                    </AvatarFallback>
+                  </Avatar>
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePictureSelection} disabled={pictureAction !== null}/>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={pictureAction !== null}>
+                      <Camera className="mr-2 h-4 w-4"/>
+                      {pictureAction === 'uploading'
+                    ? 'Uploading...'
+                    : profile?.profilePicture
+                        ? 'Change Photo'
+                        : 'Add Photo'}
+                    </Button>
+                    {profile?.profilePicture ? (<Button type="button" variant="ghost" size="sm" onClick={handleRemovePicture} disabled={pictureAction !== null} className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50">
+                        <Trash2 className="mr-2 h-4 w-4"/>
+                        {pictureAction === 'removing' ? 'Removing...' : 'Remove'}
+                      </Button>) : null}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    JPEG, PNG, or WebP up to 5 MB
+                  </p>
                 </div>
                 <div className="flex-1">
                   <div className="flex flex-col gap-3 mb-3">
@@ -293,7 +405,7 @@ export default function StudentProfile() {
                 </div>
               </div>
             </CardContent>
-          
+          </Card>
 
           
           {profile?.reservation && (<Card className="border-l-4 border-l-blue-500">
