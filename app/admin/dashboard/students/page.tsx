@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Users, Building2, Search, AlertCircle, CheckCircle, XCircle, Download, Upload, Edit, Trash2, Eye, Filter, RefreshCw, KeyRound, } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -25,6 +25,7 @@ interface Student {
     matricNo: string;
     email: string;
     level: number;
+    gender?: string;
     paymentStatus: string;
     reservationStatus?: string;
     isActive: boolean;
@@ -52,6 +53,18 @@ interface Student {
         createdAt?: string;
     }>;
 }
+interface StudentImportError {
+    row: number;
+    matricNo: string;
+    error: string;
+    rowData?: Record<string, string>;
+}
+interface StudentImportSummary {
+    totalRows: number;
+    createdCount: number;
+    failedCount: number;
+    errors?: StudentImportError[];
+}
 function StudentsPageContent() {
     const router = useRouter();
     const [students, setStudents] = useState<Student[]>([]);
@@ -65,6 +78,7 @@ function StudentsPageContent() {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [addModalOpen, setAddModalOpen] = useState(false);
+    const [importModalOpen, setImportModalOpen] = useState(false);
     const [viewLoginModalOpen, setViewLoginModalOpen] = useState(false);
     const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
     const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
@@ -73,6 +87,10 @@ function StudentsPageContent() {
     const [newPassword, setNewPassword] = useState("");
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [selectedImportFile, setSelectedImportFile] = useState<File | null>(null);
+    const [importSummary, setImportSummary] = useState<StudentImportSummary | null>(null);
     const [studentToDelete, setStudentToDelete] = useState<{
         id: string;
         name: string;
@@ -86,7 +104,7 @@ function StudentsPageContent() {
         try {
             setLoading(true);
             setError(null);
-            const response = await adminAPI.getStudents();
+            const response = await adminAPI.getStudents({ limit: 5000 });
             setStudents(response.data.data || []);
         }
         catch (err) {
@@ -182,7 +200,7 @@ function StudentsPageContent() {
         setIsResetting(true);
         try {
             console.log("Resetting password for student:", studentToReset._id);
-            console.log("Using update endpoint with 60s timeout");
+            console.log("Using dedicated password reset endpoint");
             await adminAPI.updateStudentPassword(studentToReset._id, newPassword);
             const credentials = `
 Password Reset Successful!
@@ -272,13 +290,21 @@ Current backend behavior is abnormal - password hashing should take <1 second.
             setStudentToDelete(null);
             await loadStudents();
         }
-        catch (err: any) {
+        catch (err: unknown) {
             console.error("Failed to delete student:", err);
-            if (err.code === 'ECONNABORTED') {
+            const error = err as {
+                code?: string;
+                response?: {
+                    data?: {
+                        message?: string;
+                    };
+                };
+            };
+            if (error.code === 'ECONNABORTED') {
                 toast.error("Delete timeout. The backend is processing - check backend console. The student may have been deleted.", { duration: 8000 });
             }
             else {
-                toast.error(err.response?.data?.message || "Failed to delete student");
+                toast.error(error.response?.data?.message || "Failed to delete student");
             }
             setError("Failed to delete student. Please try again.");
         }
@@ -292,6 +318,177 @@ Current backend behavior is abnormal - password hashing should take <1 second.
         setPaymentFilter("all");
         setCollegeFilter("all");
         setStatusFilter("all");
+    };
+    const downloadBlob = (blob: Blob, filename: string) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    };
+    const escapeCsvValue = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const slugifyFilenamePart = (value: string) => value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 32);
+    const buildStudentExportFilename = () => {
+        const datePart = new Date().toISOString().split("T")[0];
+        const collegeCode = collegeFilter !== "all"
+            ? colleges.find((college) => college._id === collegeFilter)?.code
+            : "";
+        const filterParts = [
+            searchQuery ? `search-${slugifyFilenamePart(searchQuery)}` : "",
+            levelFilter !== "all" ? `level-${levelFilter}` : "",
+            paymentFilter !== "all" ? `payment-${paymentFilter}` : "",
+            collegeCode ? `college-${slugifyFilenamePart(collegeCode)}` : "",
+            statusFilter !== "all" ? `status-${statusFilter}` : "",
+        ].filter(Boolean);
+        return `students_export_${datePart}${filterParts.length ? `_${filterParts.join("_")}` : ""}.csv`;
+    };
+    const downloadFailedRowsCsv = () => {
+        const issues = importSummary?.errors;
+        if (!issues || issues.length === 0) {
+            toast.error("There are no failed rows to download");
+            return;
+        }
+        const rowHeaders = Array.from(new Set(issues.flatMap((issue) => Object.keys(issue.rowData || {}))));
+        const headers = ["row", ...rowHeaders, "error"];
+        const csvContent = [
+            headers.map(escapeCsvValue).join(","),
+            ...issues.map((issue) => headers.map((header) => {
+                if (header === "row") {
+                    return escapeCsvValue(issue.row);
+                }
+                if (header === "error") {
+                    return escapeCsvValue(issue.error);
+                }
+                return escapeCsvValue(issue.rowData?.[header] || "");
+            }).join(",")),
+        ].join("\n");
+        const filename = `student_import_failed_rows_${new Date().toISOString().split("T")[0]}.csv`;
+        downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8;" }), filename);
+        toast.success("Failed rows CSV downloaded");
+    };
+    const handleExportStudents = () => {
+        if (filteredStudents.length === 0) {
+            toast.error("There are no students to export");
+            return;
+        }
+        try {
+            setIsExporting(true);
+            const headers = [
+                "firstName",
+                "lastName",
+                "matricNo",
+                "email",
+                "level",
+                "gender",
+                "collegeCode",
+                "collegeName",
+                "departmentCode",
+                "departmentName",
+                "paymentStatus",
+                "reservationStatus",
+                "hostelCode",
+                "hostelName",
+                "roomNumber",
+                "isActive",
+            ];
+            const csvRows = filteredStudents.map((student) => ({
+                firstName: student.firstName,
+                lastName: student.lastName,
+                matricNo: student.matricNo,
+                email: student.email,
+                level: student.level,
+                gender: student.gender || "",
+                collegeCode: student.college?.code || "",
+                collegeName: student.college?.name || "",
+                departmentCode: student.department?.code || "",
+                departmentName: student.department?.name || "",
+                paymentStatus: student.paymentStatus,
+                reservationStatus: student.reservationStatus || "",
+                hostelCode: student.assignedHostel?.code || "",
+                hostelName: student.assignedHostel?.name || "",
+                roomNumber: student.assignedRoom?.roomNumber || "",
+                isActive: student.isActive ? "true" : "false",
+            }));
+            const csvContent = [
+                headers.map(escapeCsvValue).join(","),
+                ...csvRows.map((row) => headers.map((header) => escapeCsvValue(row[header as keyof typeof row])).join(",")),
+            ].join("\n");
+            downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8;" }), buildStudentExportFilename());
+            toast.success(`Exported ${filteredStudents.length} student record(s)`);
+        }
+        catch (error) {
+            console.error("Failed to export students:", error);
+            toast.error("Failed to export students");
+        }
+        finally {
+            setIsExporting(false);
+        }
+    };
+    const handleDownloadImportTemplate = async () => {
+        try {
+            const response = await adminAPI.downloadStudentImportTemplate();
+            const filename = `student_import_template_${new Date().toISOString().split("T")[0]}.csv`;
+            downloadBlob(response.data, filename);
+            toast.success("Student import template downloaded");
+        }
+        catch (error) {
+            console.error("Failed to download student import template:", error);
+            toast.error("Failed to download the student import template");
+        }
+    };
+    const handleImportFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0] || null;
+        setSelectedImportFile(file);
+        setImportSummary(null);
+    };
+    const resetImportState = () => {
+        setSelectedImportFile(null);
+        setImportSummary(null);
+        setIsImporting(false);
+    };
+    const handleImportStudents = async () => {
+        if (!selectedImportFile) {
+            toast.error("Please choose a CSV file to import");
+            return;
+        }
+        try {
+            setIsImporting(true);
+            const formData = new FormData();
+            formData.append("file", selectedImportFile);
+            const response = await adminAPI.bulkUploadStudents(formData);
+            const summary = response.data.data as StudentImportSummary | undefined;
+            if (summary) {
+                setImportSummary(summary);
+            }
+            if (summary?.failedCount) {
+                toast.warning(response.data.message || "Student import completed with some row issues");
+            }
+            else {
+                toast.success(response.data.message || "Student import completed");
+            }
+            await loadStudents();
+        }
+        catch (error: unknown) {
+            console.error("Failed to import students:", error);
+            const err = error as {
+                response?: {
+                    data?: {
+                        message?: string;
+                    };
+                };
+            };
+            toast.error(err.response?.data?.message || "Failed to import students");
+        }
+        finally {
+            setIsImporting(false);
+        }
     };
     return (<div className="min-h-screen bg-background">
       
@@ -309,11 +506,14 @@ Current backend behavior is abnormal - password hashing should take <1 second.
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}/>
                 Refresh
               </Button>
-              <Button variant="outline" size="sm" onClick={() => {}}>
+              <Button variant="outline" size="sm" onClick={handleExportStudents} disabled={isExporting || filteredStudents.length === 0}>
                 <Download className="w-4 h-4 mr-2"/>
-                Export
+                {isExporting ? "Exporting..." : "Export"}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => {}}>
+              <Button variant="outline" size="sm" onClick={() => {
+                resetImportState();
+                setImportModalOpen(true);
+            }}>
                 <Upload className="w-4 h-4 mr-2"/>
                 Import
               </Button>
@@ -672,6 +872,113 @@ Current backend behavior is abnormal - password hashing should take <1 second.
 
       
       <AddStudentDialog open={addModalOpen} onOpenChange={setAddModalOpen} onSuccess={loadStudents}/>
+
+      
+      <Dialog open={importModalOpen} onOpenChange={(open) => {
+            setImportModalOpen(open);
+            if (!open) {
+                resetImportState();
+            }
+        }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-hidden p-0">
+          <div className="max-h-[90vh] overflow-y-auto p-6 pr-5">
+            <DialogHeader className="pr-8">
+              <DialogTitle>Import Students From CSV</DialogTitle>
+              <DialogDescription>
+                Upload a CSV file using college and department codes. We will validate each row and show any rows that need attention.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 space-y-4">
+            <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+              <AlertCircle className="h-4 w-4 text-blue-600"/>
+              <AlertDescription className="text-blue-900 dark:text-blue-100 text-sm">
+                Required columns: <strong>firstName</strong>, <strong>lastName</strong>, <strong>matricNo</strong>, <strong>email</strong>, <strong>level</strong>, <strong>gender</strong>, <strong>collegeCode</strong>, and <strong>departmentCode</strong>. The <strong>password</strong> column is optional.
+              </AlertDescription>
+            </Alert>
+
+            <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Need the CSV format?</p>
+                  <p className="text-xs text-muted-foreground">Download the template and replace the sample row with your real student records.</p>
+                </div>
+                <Button type="button" variant="outline" onClick={handleDownloadImportTemplate}>
+                  <Download className="w-4 h-4 mr-2"/>
+                  Download Template
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="student-import-file">CSV File</Label>
+                <Input id="student-import-file" type="file" accept=".csv,text/csv" onChange={handleImportFileChange}/>
+                <p className="text-xs text-muted-foreground">
+                  {selectedImportFile ? `Selected file: ${selectedImportFile.name}` : "Choose a CSV file to start the import."}
+                </p>
+              </div>
+            </div>
+
+            {importSummary && (<div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Card className="p-3 border shadow-none">
+                    <p className="text-xs text-muted-foreground">Rows Read</p>
+                    <p className="text-2xl font-bold text-foreground">{importSummary.totalRows}</p>
+                  </Card>
+                  <Card className="p-3 border shadow-none">
+                    <p className="text-xs text-muted-foreground">Created</p>
+                    <p className="text-2xl font-bold text-green-600">{importSummary.createdCount}</p>
+                  </Card>
+                  <Card className="p-3 border shadow-none">
+                    <p className="text-xs text-muted-foreground">Issues</p>
+                    <p className="text-2xl font-bold text-amber-600">{importSummary.failedCount}</p>
+                  </Card>
+                </div>
+
+                {importSummary.errors && importSummary.errors.length > 0 && (<div className="space-y-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-medium text-foreground">Rows that need attention</p>
+                      <Button type="button" variant="outline" size="sm" onClick={downloadFailedRowsCsv}>
+                        <Download className="w-4 h-4 mr-2"/>
+                        Download Failed Rows CSV
+                      </Button>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Row</TableHead>
+                            <TableHead>Matric No</TableHead>
+                            <TableHead>Error</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {importSummary.errors.map((issue) => (<TableRow key={`${issue.row}-${issue.matricNo}`}>
+                              <TableCell>{issue.row}</TableCell>
+                              <TableCell className="font-mono text-xs">{issue.matricNo}</TableCell>
+                              <TableCell>{issue.error}</TableCell>
+                            </TableRow>))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>)}
+              </div>)}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => {
+                resetImportState();
+                setImportModalOpen(false);
+            }} disabled={isImporting}>
+                Close
+              </Button>
+              <Button className="flex-1" onClick={handleImportStudents} disabled={isImporting || !selectedImportFile}>
+                <Upload className="w-4 h-4 mr-2"/>
+                {isImporting ? "Importing..." : "Import Students"}
+              </Button>
+            </div>
+          </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       
       <Dialog open={viewLoginModalOpen} onOpenChange={setViewLoginModalOpen}>

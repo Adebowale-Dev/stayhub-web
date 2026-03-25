@@ -56,21 +56,30 @@ export const adminAPI = {
     getStudents: (params?: Record<string, unknown>) => api.get('/admin/students', { params }),
     createStudent: (data: Record<string, unknown>) => api.post('/admin/students', data),
     updateStudent: (id: string, data: Record<string, unknown>) => api.put(`/admin/students/${id}`, data),
-    updateStudentPassword: (id: string, password: string) => api.put(`/admin/students/${id}`, { password }, { timeout: 60000 }),
+    updateStudentPassword: (id: string, password: string) => api.patch(`/admin/students/${id}/password`, { password }, { timeout: 60000 }),
+    downloadStudentImportTemplate: () => api.get('/admin/students/import-template', { responseType: 'blob' }),
     deleteStudent: (id: string, permanent?: boolean) => api.delete(`/admin/students/${id}?permanent=${permanent || false}`),
     forceDeleteStudent: (id: string) => api.post(`/admin/students/${id}/force-delete`, {}),
     resetStudentPassword: (id: string, data: {
         password: string;
-    }) => api.patch(`/admin/students/${id}/password`, data),
+    }) => api.patch(`/admin/students/${id}/password`, data, { timeout: 60000 }),
     bulkUploadStudents: (formData: FormData) => api.post('/admin/students/bulk-upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     }),
     getHostels: () => api.get('/admin/hostels'),
     createHostel: (data: Record<string, unknown>) => api.post('/admin/hostels', data),
+    downloadHostelImportTemplate: () => api.get('/admin/hostels/import-template', { responseType: 'blob' }),
+    bulkUploadHostels: (formData: FormData) => api.post('/admin/hostels/bulk-upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     updateHostel: (id: string, data: Record<string, unknown>) => api.put(`/admin/hostels/${id}`, data),
     deleteHostel: (id: string) => api.delete(`/admin/hostels/${id}`),
     getRooms: () => api.get('/admin/rooms'),
     createRoom: (data: Record<string, unknown>) => api.post('/admin/rooms', data),
+    downloadRoomImportTemplate: () => api.get('/admin/rooms/import-template', { responseType: 'blob' }),
+    bulkUploadRooms: (formData: FormData) => api.post('/admin/rooms/bulk-upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     updateRoom: (id: string, data: Record<string, unknown>) => api.put(`/admin/rooms/${id}`, data),
     deleteRoom: (id: string) => api.delete(`/admin/rooms/${id}`),
     getPorters: () => api.get('/admin/porters'),

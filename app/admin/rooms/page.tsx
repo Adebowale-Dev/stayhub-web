@@ -1,12 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Plus, DoorOpen, Search, AlertCircle, CheckCircle, Users, Building2, Download, Edit, Trash2, RefreshCw, Bed, } from "lucide-react";
+import { ChangeEvent, useEffect, useState } from "react";
+import { Plus, DoorOpen, Search, AlertCircle, CheckCircle, Users, Building2, Download, Upload, Edit, Trash2, RefreshCw, Bed, } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "@/components/ui/accordion";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -14,6 +16,7 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { adminAPI } from "@/services/api";
 import { AddRoomDialog } from "@/components/AddRoomDialog";
 import { EditRoomDialog } from "@/components/EditRoomDialog";
+import { toast } from "sonner";
 interface Hostel {
     _id: string;
     name: string;
@@ -42,6 +45,7 @@ interface Room {
         lastName: string;
         matricNumber: string;
     }>;
+    floor?: number;
 }
 interface HostelWithRooms {
     hostel: Hostel;
@@ -57,6 +61,18 @@ interface HostelWithRooms {
         currentOccupancy: number;
     };
 }
+interface RoomImportError {
+    row: number;
+    roomNumber?: string;
+    error: string;
+    rowData?: Record<string, string>;
+}
+interface RoomImportSummary {
+    totalRows: number;
+    createdCount: number;
+    failedCount: number;
+    errors?: RoomImportError[];
+}
 function RoomsPageContent() {
     const [hostels, setHostels] = useState<Hostel[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
@@ -65,11 +81,16 @@ function RoomsPageContent() {
     const [searchQuery, setSearchQuery] = useState("");
     const [genderFilter, setGenderFilter] = useState<string>("all");
     const [addModalOpen, setAddModalOpen] = useState(false);
+    const [importModalOpen, setImportModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [roomToEdit, setRoomToEdit] = useState<Room | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [selectedImportFile, setSelectedImportFile] = useState<File | null>(null);
+    const [importSummary, setImportSummary] = useState<RoomImportSummary | null>(null);
     useEffect(() => {
         loadData();
     }, []);
@@ -155,6 +176,7 @@ function RoomsPageContent() {
         return matchesSearch && matchesGender;
     })
         .filter((group) => group.rooms.length > 0 || searchQuery === "");
+    const filteredRooms = filteredGroupedData.flatMap((group) => group.rooms);
     const getGenderBadgeColor = (gender: string) => {
         switch (gender) {
             case "male":
@@ -182,6 +204,157 @@ function RoomsPageContent() {
     const clearFilters = () => {
         setSearchQuery("");
         setGenderFilter("all");
+    };
+    const downloadBlob = (blob: Blob, filename: string) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    };
+    const escapeCsvValue = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const slugifyFilenamePart = (value: string) => value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 32);
+    const buildRoomExportFilename = () => {
+        const datePart = new Date().toISOString().split("T")[0];
+        const filterParts = [
+            searchQuery ? `search-${slugifyFilenamePart(searchQuery)}` : "",
+            genderFilter !== "all" ? `gender-${genderFilter}` : "",
+        ].filter(Boolean);
+        return `rooms_export_${datePart}${filterParts.length ? `_${filterParts.join("_")}` : ""}.csv`;
+    };
+    const downloadFailedRowsCsv = () => {
+        const issues = importSummary?.errors;
+        if (!issues || issues.length === 0) {
+            toast.error("There are no failed rows to download");
+            return;
+        }
+        const rowHeaders = Array.from(new Set(issues.flatMap((issue) => Object.keys(issue.rowData || {}))));
+        const headers = ["row", ...rowHeaders, "error"];
+        const csvContent = [
+            headers.map(escapeCsvValue).join(","),
+            ...issues.map((issue) => headers.map((header) => {
+                if (header === "row") {
+                    return escapeCsvValue(issue.row);
+                }
+                if (header === "error") {
+                    return escapeCsvValue(issue.error);
+                }
+                return escapeCsvValue(issue.rowData?.[header] || "");
+            }).join(",")),
+        ].join("\n");
+        downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8;" }), `room_import_failed_rows_${new Date().toISOString().split("T")[0]}.csv`);
+        toast.success("Failed rows CSV downloaded");
+    };
+    const handleExportRooms = () => {
+        if (filteredRooms.length === 0) {
+            toast.error("There are no rooms to export");
+            return;
+        }
+        try {
+            setIsExporting(true);
+            const headers = [
+                "roomNumber",
+                "hostelName",
+                "hostelGender",
+                "level",
+                "floor",
+                "capacity",
+                "currentOccupants",
+                "availableSpaces",
+                "status",
+                "isActive",
+            ];
+            const rows = filteredRooms.map((room) => ({
+                roomNumber: room.roomNumber,
+                hostelName: room.hostel?.name || "",
+                hostelGender: room.hostel?.gender || "",
+                level: room.level,
+                floor: room.floor ?? "",
+                capacity: room.capacity,
+                currentOccupants: room.currentOccupants || 0,
+                availableSpaces: room.availableSpaces ?? (room.capacity - (room.currentOccupants || 0)),
+                status: room.status || "",
+                isActive: room.isActive ? "true" : "false",
+            }));
+            const csvContent = [
+                headers.map(escapeCsvValue).join(","),
+                ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header as keyof typeof row])).join(",")),
+            ].join("\n");
+            downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8;" }), buildRoomExportFilename());
+            toast.success(`Exported ${filteredRooms.length} room record(s)`);
+        }
+        catch (err) {
+            console.error("Failed to export rooms:", err);
+            toast.error("Failed to export rooms");
+        }
+        finally {
+            setIsExporting(false);
+        }
+    };
+    const handleDownloadImportTemplate = async () => {
+        try {
+            const response = await adminAPI.downloadRoomImportTemplate();
+            downloadBlob(response.data, `room_import_template_${new Date().toISOString().split("T")[0]}.csv`);
+            toast.success("Room import template downloaded");
+        }
+        catch (err) {
+            console.error("Failed to download room import template:", err);
+            toast.error("Failed to download the room import template");
+        }
+    };
+    const handleImportFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0] || null;
+        setSelectedImportFile(file);
+        setImportSummary(null);
+    };
+    const resetImportState = () => {
+        setSelectedImportFile(null);
+        setImportSummary(null);
+        setIsImporting(false);
+    };
+    const handleImportRooms = async () => {
+        if (!selectedImportFile) {
+            toast.error("Please choose a CSV file to import");
+            return;
+        }
+        try {
+            setIsImporting(true);
+            const formData = new FormData();
+            formData.append("file", selectedImportFile);
+            const response = await adminAPI.bulkUploadRooms(formData);
+            const summary = response.data.data as RoomImportSummary | undefined;
+            if (summary) {
+                setImportSummary(summary);
+            }
+            if (summary?.failedCount) {
+                toast.warning(response.data.message || "Room import completed with some row issues");
+            }
+            else {
+                toast.success(response.data.message || "Room import completed");
+            }
+            await loadData();
+        }
+        catch (err: unknown) {
+            console.error("Failed to import rooms:", err);
+            const error = err as {
+                response?: {
+                    data?: {
+                        message?: string;
+                    };
+                };
+            };
+            toast.error(error.response?.data?.message || "Failed to import rooms");
+        }
+        finally {
+            setIsImporting(false);
+        }
     };
     const handleEditClick = (room: Room) => {
         setRoomToEdit(room);
@@ -245,9 +418,16 @@ function RoomsPageContent() {
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}/>
                 Refresh
               </Button>
-              <Button variant="outline" size="sm" onClick={() => {}}>
+              <Button variant="outline" size="sm" onClick={handleExportRooms} disabled={isExporting || filteredRooms.length === 0}>
                 <Download className="w-4 h-4 mr-2"/>
-                Export
+                {isExporting ? "Exporting..." : "Export"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                resetImportState();
+                setImportModalOpen(true);
+            }}>
+                <Upload className="w-4 h-4 mr-2"/>
+                Import
               </Button>
               <Button size="sm" onClick={() => setAddModalOpen(true)} className="bg-primary hover:bg-primary/90">
                 <Plus className="w-4 h-4 mr-2"/>
@@ -532,7 +712,111 @@ function RoomsPageContent() {
       <AddRoomDialog open={addModalOpen} onOpenChange={setAddModalOpen} onSuccess={loadData}/>
 
       
-      <EditRoomDialog open={editModalOpen} onOpenChange={setEditModalOpen} room={roomToEdit} onSuccess={handleEditSuccess}/>
+      <Dialog open={importModalOpen} onOpenChange={(open) => {
+            setImportModalOpen(open);
+            if (!open) {
+                resetImportState();
+            }
+        }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-hidden p-0">
+          <div className="max-h-[90vh] overflow-y-auto p-6 pr-5">
+            <DialogHeader className="pr-8">
+              <DialogTitle>Import Rooms From CSV</DialogTitle>
+              <DialogDescription>
+                Upload rooms in bulk with a CSV file. Each row is validated, and failed rows can be downloaded for correction.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 space-y-4">
+            <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+              <AlertCircle className="h-4 w-4 text-blue-600"/>
+              <AlertDescription className="text-blue-900 dark:text-blue-100 text-sm">
+                Required columns: <strong>roomNumber</strong>, <strong>hostelName</strong>, <strong>level</strong>, and <strong>capacity</strong>. <strong>floor</strong> is optional.
+              </AlertDescription>
+            </Alert>
+
+            <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Need the room CSV format?</p>
+                  <p className="text-xs text-muted-foreground">Download the template, update the sample row, and upload your room list.</p>
+                </div>
+                <Button type="button" variant="outline" onClick={handleDownloadImportTemplate}>
+                  <Download className="w-4 h-4 mr-2"/>
+                  Download Template
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="room-import-file">CSV File</Label>
+                <Input id="room-import-file" type="file" accept=".csv,text/csv" onChange={handleImportFileChange}/>
+                <p className="text-xs text-muted-foreground">
+                  {selectedImportFile ? `Selected file: ${selectedImportFile.name}` : "Choose a CSV file to start the room import."}
+                </p>
+              </div>
+            </div>
+
+            {importSummary && (<div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Card className="p-3 border shadow-none">
+                    <p className="text-xs text-muted-foreground">Rows Read</p>
+                    <p className="text-2xl font-bold text-foreground">{importSummary.totalRows}</p>
+                  </Card>
+                  <Card className="p-3 border shadow-none">
+                    <p className="text-xs text-muted-foreground">Created</p>
+                    <p className="text-2xl font-bold text-green-600">{importSummary.createdCount}</p>
+                  </Card>
+                  <Card className="p-3 border shadow-none">
+                    <p className="text-xs text-muted-foreground">Issues</p>
+                    <p className="text-2xl font-bold text-amber-600">{importSummary.failedCount}</p>
+                  </Card>
+                </div>
+
+                {importSummary.errors && importSummary.errors.length > 0 && (<div className="space-y-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-medium text-foreground">Rows that need attention</p>
+                      <Button type="button" variant="outline" size="sm" onClick={downloadFailedRowsCsv}>
+                        <Download className="w-4 h-4 mr-2"/>
+                        Download Failed Rows CSV
+                      </Button>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Row</TableHead>
+                            <TableHead>Room Number</TableHead>
+                            <TableHead>Error</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {importSummary.errors.map((issue) => (<TableRow key={`${issue.row}-${issue.roomNumber || issue.error}`}>
+                              <TableCell>{issue.row}</TableCell>
+                              <TableCell>{issue.roomNumber || "-"}</TableCell>
+                              <TableCell>{issue.error}</TableCell>
+                            </TableRow>))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>)}
+              </div>)}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => {
+                resetImportState();
+                setImportModalOpen(false);
+            }} disabled={isImporting}>
+                Close
+              </Button>
+              <Button className="flex-1" onClick={handleImportRooms} disabled={isImporting || !selectedImportFile}>
+                <Upload className="w-4 h-4 mr-2"/>
+                {isImporting ? "Importing..." : "Import Rooms"}
+              </Button>
+            </div>
+          </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       
       <EditRoomDialog open={editModalOpen} onOpenChange={setEditModalOpen} room={roomToEdit} onSuccess={handleEditSuccess}/>
