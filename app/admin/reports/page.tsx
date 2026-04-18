@@ -154,6 +154,16 @@ function HostelBarChart({ hostels }: {
       </div>
     </div>);
 }
+    const normalizeStudentPaymentStatus = (status?: string | null): 'paid' | 'pending' | 'failed' => {
+      const normalized = String(status || '').toLowerCase().trim();
+      if (['paid', 'completed', 'success', 'successful'].includes(normalized)) {
+        return 'paid';
+      }
+      if (['failed', 'cancelled'].includes(normalized)) {
+        return 'failed';
+      }
+      return 'pending';
+    };
 export default function ReportsPage() {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
@@ -172,16 +182,61 @@ export default function ReportsPage() {
                 adminAPI.getDashboard(),
                 adminAPI.getStudents(),
                 adminAPI.getHostels(),
-                adminAPI.getPayments(),
+                adminAPI.getPayments({ limit: 200 }),
                 adminAPI.getPaymentStats(),
             ]);
             console.log('Students API Response:', studentsRes.data);
             console.log('Hostels API Response:', hostelsRes.data);
+            const paymentsData = paymentsRes.data.data || paymentsRes.data || [];
+            const transformedPayments = paymentsData.map((payment: any) => ({
+              ...payment,
+              student: payment.student ? {
+                _id: payment.student._id,
+                name: payment.student.name || [payment.student.firstName, payment.student.lastName].filter(Boolean).join(' ').trim() || 'N/A',
+                matricNumber: payment.student.matricNumber || payment.student.matricNo || 'N/A',
+                email: payment.student.email,
+                level: payment.student.level,
+                firstName: payment.student.firstName,
+                lastName: payment.student.lastName,
+              } : null,
+              reference: payment.paymentReference,
+              paymentDate: payment.datePaid || payment.createdAt,
+            }));
+            const sortedPayments = [...transformedPayments].sort((left: any, right: any) => {
+              const leftTime = new Date(left.paymentDate || left.updatedAt || left.createdAt || 0).getTime();
+              const rightTime = new Date(right.paymentDate || right.updatedAt || right.createdAt || 0).getTime();
+              return rightTime - leftTime;
+            });
+            const paidStudentIds = new Set(sortedPayments
+              .filter((payment: any) => normalizeStudentPaymentStatus(payment.status) === 'paid')
+              .map((payment: any) => String(payment.student?._id || ''))
+              .filter(Boolean));
+            const failedStudentIds = new Set(sortedPayments
+              .filter((payment: any) => normalizeStudentPaymentStatus(payment.status) === 'failed')
+              .map((payment: any) => String(payment.student?._id || ''))
+              .filter(Boolean));
             const studentsData = studentsRes.data.data || studentsRes.data || [];
             console.log('Students data array:', studentsData);
-            const mappedStudents = studentsData.map((student: any) => ({
+            const mappedStudents = studentsData.map((student: any) => {
+              const studentId = String(student._id || '');
+              let resolvedPaymentStatus = normalizeStudentPaymentStatus(student.paymentStatus || student.payment?.status);
+              const fullName = [student.firstName, student.lastName].filter(Boolean).join(' ').trim();
+              const displayName = student.name || fullName || 'N/A';
+              const matricNumber = student.matricNumber || student.matricNo || 'N/A';
+
+              // Some older records have completed payments in Payment collection but stale student.paymentStatus.
+              if (studentId && paidStudentIds.has(studentId)) {
+                resolvedPaymentStatus = 'paid';
+              }
+              else if (studentId && failedStudentIds.has(studentId) && resolvedPaymentStatus !== 'paid') {
+                resolvedPaymentStatus = 'failed';
+              }
+
+              return {
                 ...student,
-                paymentStatus: student.paymentStatus || student.payment?.status || 'pending',
+                name: displayName,
+                matricNumber,
+                paymentStatus: resolvedPaymentStatus,
                 roomAllocation: student.reservation ? {
                     hostel: student.reservation.hostel || student.reservation.bunk?.room?.hostel,
                     room: student.reservation.room || student.reservation.bunk?.room,
@@ -191,7 +246,8 @@ export default function ReportsPage() {
                     room: student.assignedRoom,
                     bunkNumber: student.assignedBunk?.bunkNumber
                 } : null
-            }));
+              };
+            });
             console.log('Mapped students:', mappedStudents);
             console.log('Students with room allocation:', mappedStudents.filter((s: any) => s.roomAllocation));
             const hostelsData = hostelsRes.data.data || hostelsRes.data || [];
@@ -220,7 +276,7 @@ export default function ReportsPage() {
             setStats(statsRes.data.data || statsRes.data);
             setStudents(mappedStudents);
             setHostels(mappedHostels);
-            setPayments(paymentsRes.data.data || paymentsRes.data || []);
+            setPayments(sortedPayments);
             setPaymentStats(paymentStatsRes.data.data || paymentStatsRes.data);
         }
         catch (error) {
@@ -316,7 +372,7 @@ export default function ReportsPage() {
       </ProtectedRoute>);
     }
     const studentsByPaymentStatus = {
-        paid: students.filter(s => s.paymentStatus === 'completed' || s.paymentStatus === 'paid').length,
+      paid: students.filter(s => s.paymentStatus === 'paid').length,
         pending: students.filter(s => s.paymentStatus === 'pending').length,
         failed: students.filter(s => s.paymentStatus === 'failed').length,
     };
@@ -493,7 +549,9 @@ export default function ReportsPage() {
                         <TableCell className="font-mono text-sm">{student.matricNumber}</TableCell>
                         <TableCell className="text-sm">{student.department?.name || 'N/A'}</TableCell>
                         <TableCell>
-                          {student.paymentStatus === 'completed' ? (<Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 text-xs">Paid</Badge>) : (<Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 text-xs">Pending</Badge>)}
+                          {student.paymentStatus === 'paid' && (<Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 text-xs">Paid</Badge>)}
+                          {student.paymentStatus === 'failed' && (<Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 gap-1 text-xs">Failed</Badge>)}
+                          {student.paymentStatus === 'pending' && (<Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 text-xs">Pending</Badge>)}
                         </TableCell>
                         <TableCell className="text-sm">
                           {student.roomAllocation ? (<span className="text-emerald-600">{student.roomAllocation.hostel.name} - Room {student.roomAllocation.room.roomNumber}</span>) : (<span className="text-muted-foreground">Not allocated</span>)}

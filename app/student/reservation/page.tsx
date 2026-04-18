@@ -130,19 +130,23 @@ function ReservationPageContent() {
     const [paymentStatus, setPaymentStatus] = useState<string>('pending');
     const [actionLoading, setActionLoading] = useState<'approve' | 'reject' | null>(null);
     const [addingMembers, setAddingMembers] = useState(false);
+    const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
     const [newMatrics, setNewMatrics] = useState<string[]>(['']);
     const [actionFeedback, setActionFeedback] = useState<{
         type: 'success' | 'info';
         message: string;
     } | null>(null);
-    const { user } = useAuthStore();
+    const { user, isAuthenticated } = useAuthStore();
     const invitationActionRef = useRef<HTMLDivElement | null>(null);
     const historyRef = useRef<HTMLDivElement | null>(null);
     const focusSection = searchParams.get('focus');
     const openedFromEmail = searchParams.get('source') === 'email';
     useEffect(() => {
+        if (!isAuthenticated || user?.role !== 'student') {
+            return;
+        }
         fetchStudentData();
-    }, []);
+    }, [isAuthenticated, user?.role]);
     useEffect(() => {
         if (loading) {
             return;
@@ -164,12 +168,18 @@ function ReservationPageContent() {
         setNewMatrics(['']);
     }, [reservation?._id]);
     const loadInvitationHistory = async () => {
-        const historyResponse = await studentAPI.getInvitationHistory().catch((historyError) => {
-            console.error('Failed to load invitation history:', historyError);
-            return null;
-        });
-        const historyData = historyResponse?.data?.data || historyResponse?.data || [];
-        setInvitationHistory(Array.isArray(historyData) ? historyData : []);
+        try {
+            const historyResponse = await studentAPI.getInvitationHistory();
+            const historyData = historyResponse?.data?.data || historyResponse?.data || [];
+            setInvitationHistory(Array.isArray(historyData) ? historyData : []);
+        }
+        catch (historyError: any) {
+            const status = historyError?.response?.status;
+            if (status !== 403 && status !== 404 && status !== 401) {
+                console.error('Failed to load invitation history:', historyError);
+            }
+            setInvitationHistory([]);
+        }
     };
     const fetchStudentData = async (retryCount = 0) => {
         setLoading(true);
@@ -180,6 +190,12 @@ function ReservationPageContent() {
                 if (reservationError?.response?.status === 404) {
                     setReservation(null);
                     setError('No reservation found');
+                    await historyPromise;
+                    return null;
+                }
+                if (reservationError?.response?.status === 403) {
+                    setReservation(null);
+                    setError(reservationError?.response?.data?.message || 'You do not currently have access to reservation details');
                     await historyPromise;
                     return null;
                 }
@@ -270,24 +286,34 @@ function ReservationPageContent() {
             setReservation(mappedReservation);
         }
         catch (err: any) {
-            console.error('Failed to fetch reservation:', err);
-            console.error('Error response:', err.response?.data);
-            if (err.response?.status === 429 && retryCount < 3) {
+            const status = err?.response?.status;
+            const apiMessage = typeof err?.response?.data?.message === 'string'
+                ? err.response.data.message
+                : null;
+            if (status !== 404 && status !== 403 && status !== 429 && status !== 401) {
+                console.error('Failed to fetch reservation:', err);
+                console.error('Error response:', err.response?.data);
+            }
+            if (status === 429 && retryCount < 3) {
                 const delay = Math.pow(2, retryCount) * 1000;
                 console.log(`Rate limited. Retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return fetchStudentData(retryCount + 1);
             }
-            if (err.response?.status === 404) {
+            if (status === 404) {
                 await loadInvitationHistory();
                 setError('No reservation found');
             }
-            else if (err.response?.status === 429) {
+            else if (status === 403) {
+                setReservation(null);
+                setError(apiMessage || 'You do not currently have access to reservation details');
+            }
+            else if (status === 429) {
                 setError('Too many requests. Please refresh the page in a moment.');
             }
             else {
                 setInvitationHistory([]);
-                setError('Failed to load reservation details');
+                setError(apiMessage || 'Failed to load reservation details');
             }
         }
         finally {
@@ -421,6 +447,37 @@ function ReservationPageContent() {
             setAddingMembers(false);
         }
     };
+      const handleRemoveMember = async (member: GroupMember) => {
+        const memberId = String(member._id || member.id || '').trim();
+        if (!memberId) {
+          return;
+        }
+        const memberName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim() || member.matricNumber || member.matricNo || 'this friend';
+        if (typeof window !== 'undefined') {
+          const shouldContinue = window.confirm(`Remove ${memberName} from this room invitation? This only works before the invite is approved.`);
+          if (!shouldContinue) {
+            return;
+          }
+        }
+        try {
+          setRemovingMemberId(memberId);
+          await studentAPI.removeGroupMember(memberId);
+          await fetchStudentData();
+          setActionFeedback({
+            type: 'success',
+            message: `${memberName} was removed from this room invitation. You can now add another friend.`,
+          });
+        }
+        catch (err: any) {
+          setActionFeedback({
+            type: 'info',
+            message: err.response?.data?.message || 'Failed to remove this friend from the room invitation.',
+          });
+        }
+        finally {
+          setRemovingMemberId(null);
+        }
+      };
     const getInvitationParticipantName = (person?: InvitationHistoryEntry['relatedStudent'] | InvitationHistoryEntry['actor'], fallback = 'A student') => {
         if (!person)
             return fallback;
@@ -612,6 +669,8 @@ function ReservationPageContent() {
             : 'You';
         const ownerMatric = reservation.student?.matricNo || reservation.student?.matricNumber || 'Matric unavailable';
         const roomMembers = reservation.groupMembers || [];
+        const reservationOwnerId = reservation.reservedBy?._id || reservation.student?._id || user?._id;
+        const isReservationOwner = Boolean(reservationOwnerId && user?._id && reservationOwnerId === user._id);
         const ownerNote = reservation.reservedBy?._id && reservation.reservedBy._id !== reservation.student?._id
             ? 'You are part of this room'
             : 'Your reserved bed in this room';
@@ -639,13 +698,21 @@ function ReservationPageContent() {
 
         {roomMembers.length > 0 ? roomMembers.map((member, index) => {
                 const memberName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim() || member.matricNumber || member.matricNo || `Friend ${index + 1}`;
+                const memberStatus = String(member.status || '').toLowerCase().replace('_', '-');
+                const canRemoveMember = isReservationOwner && (memberStatus === 'temporary' || memberStatus === 'pending');
+                const memberId = String(member._id || member.id || '');
                 return (<div key={member._id || member.id || `${member.matricNumber}-${index}`} className="rounded-xl border border-border/70 bg-muted/20 p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="space-y-1">
                   <p className="font-medium text-foreground">{memberName}</p>
                   <p className="text-sm text-muted-foreground">{member.matricNumber || member.matricNo || 'Matric unavailable'}</p>
                 </div>
-                {getStatusBadge(member.status || 'temporary')}
+                <div className="flex flex-col items-end gap-2">
+                  {getStatusBadge(member.status || 'temporary')}
+                  {canRemoveMember ? (<Button type="button" variant="outline" size="sm" onClick={() => handleRemoveMember(member)} disabled={Boolean(removingMemberId) && removingMemberId === memberId}>
+                      {removingMemberId === memberId ? 'Removing...' : 'Remove Pending Invite'}
+                    </Button>) : null}
+                </div>
               </div>
             </div>);
             }) : (<p className="text-sm text-muted-foreground">

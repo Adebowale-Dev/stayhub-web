@@ -56,24 +56,31 @@ function QuickLink({ icon: Icon, label, sub, onClick, iconBg, iconColor, }: {
 }
 export default function AdminDashboard() {
     const router = useRouter();
-    const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
     const { dashboardStats, statsLoading, setDashboardStats, setStatsLoading } = useAdminStore();
     useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'admin') {
+      return;
+    }
+
         const fetchDashboardData = async () => {
             try {
                 setStatsLoading(true);
                 const response = await adminAPI.getDashboard();
                 setDashboardStats(response.data.data);
             }
-            catch (error) {
-                console.error('Failed to fetch dashboard:', error);
+      catch (error: any) {
+        const status = error?.response?.status;
+        if (status !== 401 && status !== 403) {
+          console.error('Failed to fetch dashboard:', error);
+        }
             }
             finally {
                 setStatsLoading(false);
             }
         };
         fetchDashboardData();
-    }, [setDashboardStats, setStatsLoading]);
+  }, [isAuthenticated, user?.role, setDashboardStats, setStatsLoading]);
     const stats = dashboardStats;
     const paidPct = stats?.totalStudents && stats.totalStudents > 0
         ? Math.round((stats.studentsPaid / stats.totalStudents) * 100)

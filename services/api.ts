@@ -73,7 +73,7 @@ export const adminAPI = {
         headers: { 'Content-Type': 'multipart/form-data' },
     }),
     updateHostel: (id: string, data: Record<string, unknown>) => api.put(`/admin/hostels/${id}`, data),
-    deleteHostel: (id: string) => api.delete(`/admin/hostels/${id}`),
+    deleteHostel: (id: string, permanent = true) => api.delete(`/admin/hostels/${id}?permanent=${permanent}`),
     getRooms: () => api.get('/admin/rooms'),
     createRoom: (data: Record<string, unknown>) => api.post('/admin/rooms', data),
     downloadRoomImportTemplate: () => api.get('/admin/rooms/import-template', { responseType: 'blob' }),
@@ -110,12 +110,15 @@ export const studentAPI = {
         roomId: string;
         matricNo: string;
         hostelId?: string;
-    }) => api.post('/student/reservation/invite-preview', payload),
+    }) => api.post('/student/reservation/invite-preview', payload, {
+        validateStatus: (status) => status >= 200 && status < 500,
+    }),
     reserveRoom: (data: Record<string, unknown>) => api.post('/student/reservations', data),
     addGroupMembers: (reservationId: string, matricNumbers: string[]) => api.post('/student/reservation/members', {
         reservationId,
         matrics: matricNumbers,
     }),
+    removeGroupMember: (memberId: string) => api.delete(`/student/reservation/members/${memberId}`),
     getReservation: () => api.get('/student/reservation'),
     respondToInvitation: (action: 'approve' | 'reject') => api.post('/student/reservation/respond', { action }),
 };

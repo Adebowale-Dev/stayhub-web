@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -67,6 +68,7 @@ function HostelsPageContent() {
     const [hostelToEdit, setHostelToEdit] = useState<Hostel | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [hostelToDelete, setHostelToDelete] = useState<Hostel | null>(null);
+    const [deletePermanently, setDeletePermanently] = useState(true);
     const [deleting, setDeleting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
@@ -153,6 +155,7 @@ function HostelsPageContent() {
     };
     const handleDeleteClick = (hostel: Hostel) => {
         setHostelToDelete(hostel);
+        setDeletePermanently(true);
         setDeleteDialogOpen(true);
     };
     const handleDeleteConfirm = async () => {
@@ -160,48 +163,14 @@ function HostelsPageContent() {
             return;
         setDeleting(true);
         try {
-            console.log("Deleting hostel:", hostelToDelete);
-            console.log("Hostel ID:", hostelToDelete._id);
-            console.log("Delete URL will be:", `/admin/hostels/${hostelToDelete._id}`);
-            try {
-                const checkResponse = await adminAPI.getHostels();
-                console.log("Get hostels response:", checkResponse.data);
-                const hostelsList = checkResponse.data.hostels || checkResponse.data.data || checkResponse.data;
-                const exists = Array.isArray(hostelsList) ? hostelsList.some((h: Hostel) => h._id === hostelToDelete._id) : false;
-                console.log("Hostel exists in list:", exists);
-            }
-            catch (e) {
-                console.log("Could not verify hostel existence:", e);
-            }
-            const response = await adminAPI.deleteHostel(hostelToDelete._id);
-            console.log("Delete response:", response.data);
+          const response = await adminAPI.deleteHostel(hostelToDelete._id, deletePermanently);
             await loadHostels();
             setDeleteDialogOpen(false);
             setHostelToDelete(null);
+          toast.success(response.data?.message || "Hostel deleted successfully");
         }
         catch (error) {
-            console.error("Failed to delete hostel:", error);
-            if (error instanceof Error && 'response' in error) {
-                const axiosError = error as {
-                    response?: {
-                        status?: number;
-                        statusText?: string;
-                        data?: unknown;
-                    };
-                    config?: {
-                        url?: string;
-                        method?: string;
-                        baseURL?: string;
-                    };
-                };
-                console.error("Base URL:", axiosError.config?.baseURL);
-                console.error("Request URL:", axiosError.config?.url);
-                console.error("Full URL:", `${axiosError.config?.baseURL}${axiosError.config?.url}`);
-                console.error("Request method:", axiosError.config?.method);
-                console.error("Response status:", axiosError.response?.status);
-                console.error("Response statusText:", axiosError.response?.statusText);
-                console.error("Response data:", axiosError.response?.data);
-            }
+          console.error("Failed to delete hostel:", error);
             let errorMessage = "Failed to delete hostel. Please try again.";
             if (error instanceof Error && 'response' in error) {
                 const axiosError = error as {
@@ -216,7 +185,7 @@ function HostelsPageContent() {
                     axiosError.response?.data?.error ||
                     errorMessage;
             }
-            alert(errorMessage);
+              toast.error(errorMessage);
         }
         finally {
             setDeleting(false);
@@ -776,9 +745,25 @@ function HostelsPageContent() {
             </DialogTitle>
             <DialogDescription>
               Are you sure you want to delete <span className="font-semibold">{hostelToDelete?.name}</span>?
-              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox id="delete-permanent" checked={deletePermanently} onCheckedChange={(checked) => setDeletePermanently(checked === true)}/>
+              <div className="space-y-1">
+                <Label htmlFor="delete-permanent" className="text-sm font-medium cursor-pointer">
+                  Delete permanently
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {deletePermanently
+                    ? "Hostel, rooms, and bunks will be removed permanently."
+                    : "Hostel will be deactivated and kept for records."}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
               Cancel

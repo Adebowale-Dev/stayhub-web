@@ -36,6 +36,7 @@ export function EditStudentDialog({ open, onOpenChange, student, onSuccess, }: E
     });
     const [formData, setFormData] = useState(getInitialFormData());
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [submitError, setSubmitError] = useState<string | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
     useEffect(() => {
         if (open && student && !isInitialized) {
@@ -49,10 +50,12 @@ export function EditStudentDialog({ open, onOpenChange, student, onSuccess, }: E
                 gender: student.gender || "",
             });
             setErrors({});
+            setSubmitError(null);
             setIsInitialized(true);
         }
         else if (!open) {
             setIsInitialized(false);
+            setSubmitError(null);
         }
     }, [open, student]);
     const validateForm = () => {
@@ -75,8 +78,11 @@ export function EditStudentDialog({ open, onOpenChange, student, onSuccess, }: E
                 newErrors.email = "Invalid email format";
             }
         }
-        if (!formData.level || formData.level < 100 || formData.level > 900) {
-            newErrors.level = "Level must be between 100 and 900";
+        if (![100, 200, 300, 400, 500, 600].includes(formData.level)) {
+          newErrors.level = "Level must be one of: 100, 200, 300, 400, 500, or 600";
+        }
+        if (formData.gender && !["male", "female"].includes(formData.gender.toLowerCase())) {
+          newErrors.gender = "Gender must be either male or female";
         }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -86,24 +92,40 @@ export function EditStudentDialog({ open, onOpenChange, student, onSuccess, }: E
         if (!validateForm() || !student)
             return;
         try {
-            await updateStudent(student._id, {
+        setSubmitError(null);
+        const payload: Record<string, unknown> = {
                 firstName: formData.firstName.trim(),
                 lastName: formData.lastName.trim(),
                 matricNo: formData.matricNo.trim().toUpperCase(),
                 email: formData.email.trim().toLowerCase(),
                 level: formData.level,
-            });
+          phoneNumber: formData.phoneNumber.trim(),
+        };
+        if (formData.gender) {
+          payload.gender = formData.gender.toLowerCase();
+        }
+        await updateStudent(student._id, payload);
             onOpenChange(false);
             onSuccess?.();
-        }
-        catch (error) {
+      }
+      catch (error: unknown) {
             console.error("Failed to update student:", error);
+        const err = error as {
+          response?: {
+            data?: {
+              message?: string;
+            };
+          };
+          message?: string;
+        };
+        setSubmitError(err.response?.data?.message || err.message || "Failed to update student.");
         }
     };
     const handleClose = () => {
         if (!loading) {
             onOpenChange(false);
             setErrors({});
+        setSubmitError(null);
         }
     };
     return (<Dialog open={open} onOpenChange={handleClose}>
@@ -202,13 +224,18 @@ export function EditStudentDialog({ open, onOpenChange, student, onSuccess, }: E
               <Label htmlFor="gender" className="text-sm font-medium">
                 Gender (Optional)
               </Label>
-              <select id="gender" value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} disabled={loading} aria-label="Select Gender" className="w-full h-10 px-3 border rounded-md bg-background">
+              <select id="gender" value={formData.gender} onChange={(e) => {
+            setFormData({ ...formData, gender: e.target.value });
+            if (errors.gender)
+                setErrors({ ...errors, gender: "" });
+        }} disabled={loading} aria-label="Select Gender" className={`w-full h-10 px-3 border rounded-md bg-background ${errors.gender ? "border-destructive" : ""}`}>
                 <option value="">Select Gender</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
-                <option value="other">Other</option>
               </select>
+              {errors.gender && (<p className="text-xs text-destructive">{errors.gender}</p>)}
             </div>
+            {submitError && (<p className="text-sm text-destructive">{submitError}</p>)}
           </div>
 
           <DialogFooter>

@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from '
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from '@/components/ui/dialog';
 interface Room {
     _id: string;
+    hostelId?: string;
     roomNumber: string;
     floor: number;
     capacity: number;
@@ -101,6 +102,7 @@ export default function HostelRoomsPage() {
     const [reserveWithFriends, setReserveWithFriends] = useState(false);
     const [invitedFriends, setInvitedFriends] = useState<InvitedFriend[]>([]);
     const [friendInput, setFriendInput] = useState('');
+    const [friendValidationError, setFriendValidationError] = useState<string | null>(null);
     const [validatingFriend, setValidatingFriend] = useState(false);
     const [activeReservation, setActiveReservation] = useState<ActiveReservationInfo | null>(null);
     const loadRooms = async () => {
@@ -111,6 +113,7 @@ export default function HostelRoomsPage() {
             const roomsData = response.data.data || response.data || [];
             const mappedRooms: Room[] = roomsData.map((room: any) => ({
                 _id: room._id,
+                hostelId: room.hostel?._id || room.hostel || hostelId,
                 roomNumber: room.roomNumber,
                 floor: room.floor,
                 capacity: room.capacity,
@@ -207,33 +210,46 @@ export default function HostelRoomsPage() {
         const room = rooms.find(r => r._id === roomId);
         if (room) {
             setSelectedRoom(room);
+            setFriendValidationError(null);
             setReserveDialogOpen(true);
         }
     };
     const validateAndAddFriend = async () => {
-        if (!friendInput.trim()) {
-            alert('Please enter a matric number');
+        const normalizedMatricNo = friendInput.toUpperCase().trim();
+
+        if (!normalizedMatricNo) {
+            setFriendValidationError('Please enter a matric number.');
             return;
         }
         if (!selectedRoom)
             return;
-        if (invitedFriends.some(f => f.matricNo.toLowerCase() === friendInput.toLowerCase())) {
-            alert('This friend is already in the list');
+        if (invitedFriends.some(f => f.matricNo.toLowerCase() === normalizedMatricNo.toLowerCase())) {
+            setFriendValidationError('This friend is already in the list.');
             setFriendInput('');
             return;
         }
+
         const totalFriendsAfterAdding = invitedFriends.length + 1;
-        if (totalFriendsAfterAdding > selectedRoom.availableSpaces) {
-            alert(`Not enough space! Only ${selectedRoom.availableSpaces} space(s) available.`);
+        const totalReservationsAfterAdding = totalFriendsAfterAdding + 1;
+        if (totalReservationsAfterAdding > selectedRoom.availableSpaces) {
+            setFriendValidationError(`Not enough space for you + ${totalFriendsAfterAdding} friend${totalFriendsAfterAdding === 1 ? '' : 's'}. This room has ${selectedRoom.availableSpaces} available space(s).`);
             return;
         }
+
         setValidatingFriend(true);
+        setFriendValidationError(null);
         try {
             const response = await studentAPI.previewReservationInvite({
                 roomId: selectedRoom._id,
-                hostelId,
-                matricNo: friendInput.toUpperCase(),
+                hostelId: selectedRoom.hostelId || hostelId,
+                matricNo: normalizedMatricNo,
             });
+
+            if (response.status >= 400 || !response.data?.success) {
+                setFriendValidationError(response.data?.message || 'Failed to validate friend. Please check the matric number.');
+                return;
+            }
+
             const preview = (response.data.data || response.data) as InvitePreview;
             const friend = preview.friend;
             const nextFriend: InvitedFriend = {
@@ -248,26 +264,37 @@ export default function HostelRoomsPage() {
                 requiresPaymentBeforeApproval: preview.invitation.requiresPaymentBeforeApproval,
                 notificationChannels: preview.invitation.notificationChannels,
             };
+
             setInvitedFriends([...invitedFriends, nextFriend]);
             setFriendInput('');
+            setFriendValidationError(null);
         }
         catch (error: unknown) {
-            console.error('Friend validation failed:', error);
             const axiosError = error as {
                 response?: {
+                    status?: number;
                     data?: {
                         message?: string;
                     };
                 };
             };
-            alert(axiosError.response?.data?.message || 'Failed to validate friend. Please check the matric number.');
+            const status = axiosError.response?.status;
+
+            if (status && status < 500) {
+                setFriendValidationError(axiosError.response?.data?.message || 'Unable to add this friend to the reservation.');
+                return;
+            }
+
+            console.error('Friend validation request failed:', error);
+            setFriendValidationError('Failed to validate friend due to a network or server issue. Please try again.');
         }
         finally {
             setValidatingFriend(false);
         }
     };
     const removeFriend = (matricNo: string) => {
-        setInvitedFriends(invitedFriends.filter(f => f.matricNo !== matricNo));
+      setInvitedFriends(invitedFriends.filter(f => f.matricNo !== matricNo));
+      setFriendValidationError(null);
     };
     const resetReservationDialog = () => {
         setReserveDialogOpen(false);
@@ -275,15 +302,25 @@ export default function HostelRoomsPage() {
         setReserveWithFriends(false);
         setInvitedFriends([]);
         setFriendInput('');
+        setFriendValidationError(null);
     };
     const confirmReservation = async () => {
         if (!selectedRoom || !hostelId)
             return;
+
+      if (reserveWithFriends && invitedFriends.length > 0) {
+        const requiredSlots = invitedFriends.length + 1;
+        if (requiredSlots > selectedRoom.availableSpaces) {
+          setFriendValidationError(`Not enough space for this group. You need ${requiredSlots} space(s), but this room has ${selectedRoom.availableSpaces}.`);
+          return;
+        }
+      }
+
         setReserving(true);
         try {
             const reservationData: Record<string, unknown> = {
                 roomId: selectedRoom._id,
-                hostelId: hostelId,
+          hostelId: selectedRoom.hostelId || hostelId,
             };
             if (reserveWithFriends && invitedFriends.length > 0) {
                 reservationData.friends = invitedFriends.map(f => f.matricNo);
@@ -663,16 +700,26 @@ export default function HostelRoomsPage() {
                 
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="reserve-with-friends" checked={reserveWithFriends} onCheckedChange={(checked) => {
+                    <Checkbox id="reserve-with-friends" disabled={(selectedRoom?.availableSpaces || 0) < 2} checked={reserveWithFriends} onCheckedChange={(checked) => {
+                if (checked === true && (selectedRoom?.availableSpaces || 0) < 2) {
+                    setReserveWithFriends(false);
+                    setFriendValidationError('Group reservation requires at least 2 available spaces in this room.');
+                    return;
+                }
                 setReserveWithFriends(checked as boolean);
                 if (!checked) {
                     setInvitedFriends([]);
+                    setFriendValidationError(null);
+                }
+                else {
+                    setFriendValidationError(null);
                 }
             }}/>
                     <label htmlFor="reserve-with-friends" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
                       Reserve with friends (Group Reservation)
                     </label>
                   </div>
+                  {(selectedRoom?.availableSpaces || 0) < 2 && (<p className="text-xs text-muted-foreground">Group reservation is unavailable for this room because only {selectedRoom?.availableSpaces || 0} space is left.</p>)}
 
                   {reserveWithFriends && (<div className="space-y-3 border rounded-lg p-4 bg-muted/30">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -685,7 +732,12 @@ export default function HostelRoomsPage() {
 
                       
                       <div className="flex gap-2">
-                        <Input placeholder="Enter matric number (e.g., CSC/2020/001)" value={friendInput} onChange={(e) => setFriendInput(e.target.value.toUpperCase())} onKeyPress={(e) => {
+                        <Input placeholder="Enter matric number (e.g., CSC/2020/001)" value={friendInput} onChange={(e) => {
+                    setFriendInput(e.target.value.toUpperCase());
+                    if (friendValidationError) {
+                        setFriendValidationError(null);
+                    }
+                }} onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         validateAndAddFriend();
@@ -696,6 +748,8 @@ export default function HostelRoomsPage() {
                           {validatingFriend ? 'Checking...' : 'Add'}
                         </Button>
                       </div>
+
+                      {friendValidationError && (<p className="text-sm text-destructive">{friendValidationError}</p>)}
 
                       
                       {invitedFriends.length > 0 && (<div className="space-y-2">
